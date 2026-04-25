@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: soulchat
+  
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/soulchat
+      auto-index-creation: true
+    
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+server:
+  port: 8080
+
+jwt:
+  secret: your-256-bit-secret-key-for-jwt-signing-must-be-at-least-32-characters-long
+  expiration: 86400000
+
+logging:
+  level:
+    com.talkingai.soulchat: DEBUG
+    org.springframework.data.mongodb: DEBUG
