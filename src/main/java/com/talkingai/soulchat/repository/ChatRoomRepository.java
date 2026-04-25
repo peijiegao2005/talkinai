@@ -8,10 +8,12 @@ import reactor.core.publisher.Mono;
 
 @Repository
 public interface ChatRoomRepository extends ReactiveMongoRepository<ChatRoom, String> {
-    
+
     Mono<ChatRoom> findByRoomId(String roomId);
-    
+
     Flux<ChatRoom> findByParticipantsContaining(String userId);
-    
+
+    Flux<ChatRoom> findByParticipantsContainingAndActiveTrue(String userId);
+
     Flux<ChatRoom> findByType(ChatRoom.RoomType type);
 }
