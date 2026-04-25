@@ -25,6 +25,11 @@ jwt:
   secret: your-256-bit-secret-key-for-jwt-signing-must-be-at-least-32-characters-long
   expiration: 86400000
 
+llm:
+  api-key: ${OPENAI_API_KEY:}
+  base-url: ${LLM_BASE_URL:https://api.openai.com/v1}
+  model: ${LLM_MODEL:gpt-3.5-turbo}
+
 logging:
   level:
     com.talkingai.soulchat: DEBUG

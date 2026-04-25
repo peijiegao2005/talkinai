@@ -10,6 +10,7 @@ import com.talkingai.soulchat.repository.AssessmentReportRepository;
 import com.talkingai.soulchat.repository.QuestionTemplateRepository;
 import com.talkingai.soulchat.repository.UserRepository;
 import com.talkingai.soulchat.service.AssessmentSessionService.AssessmentSession;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class AssessmentService {
     private final QuestionTemplateRepository questionTemplateRepository;
     private final AssessmentReportRepository assessmentReportRepository;
     private final UserRepository userRepository;
+    private final LlmService llmService;
 
     private static final int TOTAL_QUESTIONS = 10;
     private static final String[] DIMENSIONS = {
@@ -72,20 +74,46 @@ public class AssessmentService {
                 .flatMap(dimensionScores -> {
                     List<Double> personalityVector = buildPersonalityVector(dimensionScores);
 
-                    String summary = generateSummary(dimensionScores);
-                    String description = generateDescription(dimensionScores);
-
-                    return saveAssessmentReport(userId, dimensionScores, personalityVector, summary, description)
-                            .then(updateUserPersonalityVector(userId, personalityVector))
-                            .then(sessionService.deleteSession(userId))
-                            .thenReturn(AssessmentResultResponse.builder()
-                                    .completed(true)
-                                    .dimensionScores(dimensionScores)
-                                    .personalityVector(personalityVector)
-                                    .summary(summary)
-                                    .description(description)
-                                    .build());
+                    // 使用LLM生成详细报告
+                    return generateAiReport(userId, dimensionScores, personalityVector)
+                            .flatMap(aiReport -> saveAssessmentReport(userId, dimensionScores, personalityVector,
+                                    aiReport.getSummary(), aiReport.getDescription())
+                                    .then(updateUserPersonalityVector(userId, personalityVector))
+                                    .then(sessionService.deleteSession(userId))
+                                    .thenReturn(AssessmentResultResponse.builder()
+                                            .completed(true)
+                                            .dimensionScores(dimensionScores)
+                                            .personalityVector(personalityVector)
+                                            .summary(aiReport.getSummary())
+                                            .description(aiReport.getDescription())
+                                            .build()));
                 });
+    }
+
+    private Mono<AiReport> generateAiReport(String userId, Map<String, Double> dimensionScores, List<Double> personalityVector) {
+        return userRepository.findById(userId)
+                .flatMap(user -> llmService.generateDetailedAnalysis(
+                        user.getNickname() != null ? user.getNickname() : "用户",
+                        dimensionScores))
+                .map(aiContent -> {
+                    AiReport report = new AiReport();
+                    report.setSummary(generateSummary(dimensionScores));
+                    report.setDescription(aiContent);
+                    return report;
+                })
+                .onErrorResume(e -> {
+                    log.warn("LLM生成报告失败，使用默认描述: {}", e.getMessage());
+                    AiReport report = new AiReport();
+                    report.setSummary(generateSummary(dimensionScores));
+                    report.setDescription(generateDescription(dimensionScores));
+                    return Mono.just(report);
+                });
+    }
+
+    @Data
+    private static class AiReport {
+        private String summary;
+        private String description;
     }
 
     public Mono<AssessmentResultResponse> getLatestReport(String userId) {

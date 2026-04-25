@@ -5,6 +5,7 @@ import com.talkingai.soulchat.entity.ChatRoom;
 import com.talkingai.soulchat.repository.ChatMessageRepository;
 import com.talkingai.soulchat.repository.ChatRoomRepository;
 import com.talkingai.soulchat.repository.UserRepository;
+import com.talkingai.soulchat.security.content.ContentModerationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -17,7 +18,6 @@ import reactor.core.publisher.Mono;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -27,32 +27,43 @@ public class ChatService {
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final UserRepository userRepository;
+    private final ContentModerationService contentModerationService;
 
     public Mono<ChatMessage> saveMessage(String senderId, String receiverId, String content) {
-        ChatMessage message = ChatMessage.builder()
-                .senderId(senderId)
-                .receiverId(receiverId)
-                .content(content)
-                .type(ChatMessage.MessageType.PRIVATE)
-                .timestamp(Instant.now().toEpochMilli())
-                .read(false)
-                .build();
+        return contentModerationService.moderateText(content)
+                .flatMap(result -> {
+                    String finalContent = result.isApproved() ? content : result.getFilteredContent();
 
-        return chatMessageRepository.save(message)
+                    ChatMessage message = ChatMessage.builder()
+                            .senderId(senderId)
+                            .receiverId(receiverId)
+                            .content(finalContent)
+                            .type(ChatMessage.MessageType.PRIVATE)
+                            .timestamp(Instant.now().toEpochMilli())
+                            .read(false)
+                            .build();
+
+                    return chatMessageRepository.save(message);
+                })
                 .doOnSuccess(m -> log.debug("消息已保存: from={} to={}", senderId, receiverId));
     }
 
     public Mono<ChatMessage> saveRoomMessage(String senderId, String roomId, String content) {
-        ChatMessage message = ChatMessage.builder()
-                .senderId(senderId)
-                .roomId(roomId)
-                .content(content)
-                .type(ChatMessage.MessageType.GROUP)
-                .timestamp(Instant.now().toEpochMilli())
-                .read(false)
-                .build();
+        return contentModerationService.moderateText(content)
+                .flatMap(result -> {
+                    String finalContent = result.isApproved() ? content : result.getFilteredContent();
 
-        return chatMessageRepository.save(message);
+                    ChatMessage message = ChatMessage.builder()
+                            .senderId(senderId)
+                            .roomId(roomId)
+                            .content(finalContent)
+                            .type(ChatMessage.MessageType.GROUP)
+                            .timestamp(Instant.now().toEpochMilli())
+                            .read(false)
+                            .build();
+
+                    return chatMessageRepository.save(message);
+                });
     }
 
     public Flux<ChatMessage> getPrivateMessages(String userId1, String userId2, int page, int size) {
