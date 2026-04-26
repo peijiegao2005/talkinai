@@ -108,6 +108,10 @@ public class AssessmentSessionService {
         String key = SESSION_KEY_PREFIX + userId;
         return redisTemplate.delete(key)
                 .doOnSuccess(count -> log.info("Deleted session for user: {}, count: {}", userId, count))
+                .onErrorResume(e -> {
+                    log.warn("Failed to delete session for user: {}, error: {}", userId, e.getMessage());
+                    return Mono.just(0L);
+                })
                 .then();
     }
 

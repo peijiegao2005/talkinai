@@ -1,8 +1,10 @@
-package com.talkingai.soulchat.initializer;
+package com.talkingai.soulchat.config;
 
 import com.talkingai.soulchat.entity.ChatRoom;
+import com.talkingai.soulchat.entity.MoodQuestion;
 import com.talkingai.soulchat.entity.QuestionTemplate;
 import com.talkingai.soulchat.repository.ChatRoomRepository;
+import com.talkingai.soulchat.repository.MoodQuestionRepository;
 import com.talkingai.soulchat.repository.QuestionTemplateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +15,6 @@ import reactor.core.publisher.Mono;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 
 @Slf4j
 @Component
@@ -22,11 +23,13 @@ public class DataInitializer implements CommandLineRunner {
 
     private final QuestionTemplateRepository questionRepository;
     private final ChatRoomRepository chatRoomRepository;
+    private final MoodQuestionRepository moodQuestionRepository;
 
     @Override
     public void run(String... args) {
         initQuestions()
                 .then(initLobbyRoom())
+                .then(initMoodQuestions())
                 .subscribe(
                         null,
                         error -> log.error("Data initialization failed", error),
@@ -41,9 +44,9 @@ public class DataInitializer implements CommandLineRunner {
                         log.info("Questions already initialized, skipping...");
                         return Mono.empty();
                     }
-                    
+
                     List<QuestionTemplate> questions = Arrays.asList(
-                            createQuestion(1, "在社交场合中，你通常：", "extraversion", 
+                            createQuestion(1, "在社交场合中，你通常：", "extraversion",
                                     Arrays.asList(
                                             createOption("A", "主动与陌生人交谈，享受社交", 5),
                                             createOption("B", "与熟悉的朋友交流", 3),
@@ -114,7 +117,7 @@ public class DataInitializer implements CommandLineRunner {
                                             createOption("D", "强烈抵触或自我怀疑", 1)
                                     ))
                     );
-                    
+
                     return questionRepository.saveAll(questions)
                             .doOnComplete(() -> log.info("Initialized {} questions", questions.size()))
                             .then();
@@ -135,7 +138,83 @@ public class DataInitializer implements CommandLineRunner {
                 .then();
     }
 
-    private QuestionTemplate createQuestion(int number, String content, String dimension, 
+    private Mono<Void> initMoodQuestions() {
+        List<MoodQuestion> questions = Arrays.asList(
+                // 问题1: 当前情绪状态
+                MoodQuestion.builder()
+                        .questionNumber(1)
+                        .content("此刻，最能描述你心情的词是？")
+                        .options(Arrays.asList(
+                                MoodQuestion.MoodOption.builder().label("A").text("开心、愉悦").score(5).build(),
+                                MoodQuestion.MoodOption.builder().label("B").text("平静、放松").score(4).build(),
+                                MoodQuestion.MoodOption.builder().label("C").text("焦虑、紧张").score(3).build(),
+                                MoodQuestion.MoodOption.builder().label("D").text("孤独、寂寞").score(2).build(),
+                                MoodQuestion.MoodOption.builder().label("E").text("疲惫、无感").score(1).build()
+                        ))
+                        .build(),
+
+                // 问题2: 能量水平
+                MoodQuestion.builder()
+                        .questionNumber(2)
+                        .content("你现在的精力状态如何？")
+                        .options(Arrays.asList(
+                                MoodQuestion.MoodOption.builder().label("A").text("充满活力，干劲十足").score(5).build(),
+                                MoodQuestion.MoodOption.builder().label("B").text("精力充沛，状态不错").score(4).build(),
+                                MoodQuestion.MoodOption.builder().label("C").text("平静稳定，节奏舒缓").score(3).build(),
+                                MoodQuestion.MoodOption.builder().label("D").text("有些疲惫，需要休息").score(2).build(),
+                                MoodQuestion.MoodOption.builder().label("E").text("精疲力尽，提不起劲").score(1).build()
+                        ))
+                        .build(),
+
+                // 问题3: 社交意愿
+                MoodQuestion.builder()
+                        .questionNumber(3)
+                        .content("你现在想和人交流吗？")
+                        .options(Arrays.asList(
+                                MoodQuestion.MoodOption.builder().label("A").text("非常想，想找人聊天分享").score(5).build(),
+                                MoodQuestion.MoodOption.builder().label("B").text("愿意，可以轻松交流").score(4).build(),
+                                MoodQuestion.MoodOption.builder().label("C").text("看情况，视话题而定").score(3).build(),
+                                MoodQuestion.MoodOption.builder().label("D").text("不太想，只想听听别人").score(2).build(),
+                                MoodQuestion.MoodOption.builder().label("E").text("不想，希望一个人静静").score(1).build()
+                        ))
+                        .build(),
+
+                // 问题4: 思维状态
+                MoodQuestion.builder()
+                        .questionNumber(4)
+                        .content("你的大脑现在是什么状态？")
+                        .options(Arrays.asList(
+                                MoodQuestion.MoodOption.builder().label("A").text("思维活跃，有很多想法").score(5).build(),
+                                MoodQuestion.MoodOption.builder().label("B").text("专注某件事，很投入").score(4).build(),
+                                MoodQuestion.MoodOption.builder().label("C").text("思绪平静，没有杂念").score(3).build(),
+                                MoodQuestion.MoodOption.builder().label("D").text("有些担忧，在想事情").score(2).build(),
+                                MoodQuestion.MoodOption.builder().label("E").text("头脑空白，什么都不想").score(1).build()
+                        ))
+                        .build(),
+
+                // 问题5: 期望的氛围
+                MoodQuestion.builder()
+                        .questionNumber(5)
+                        .content("你希望进入一个什么样的聊天氛围？")
+                        .options(Arrays.asList(
+                                MoodQuestion.MoodOption.builder().label("A").text("热闹欢快，充满活力").score(5).build(),
+                                MoodQuestion.MoodOption.builder().label("B").text("温暖陪伴，有人倾听").score(4).build(),
+                                MoodQuestion.MoodOption.builder().label("C").text("安静舒缓，轻松自在").score(3).build(),
+                                MoodQuestion.MoodOption.builder().label("D").text("深度交流，思想碰撞").score(2).build(),
+                                MoodQuestion.MoodOption.builder().label("E").text("随意轻松，没有压力").score(1).build()
+                        ))
+                        .build()
+        );
+
+        return Flux.fromIterable(questions)
+                .flatMap(q -> moodQuestionRepository.findByQuestionNumber(q.getQuestionNumber())
+                        .switchIfEmpty(moodQuestionRepository.save(q)))
+                .collectList()
+                .doOnNext(saved -> log.info("Initialized {} mood questions", saved.size()))
+                .then();
+    }
+
+    private QuestionTemplate createQuestion(int number, String content, String dimension,
                                             List<QuestionTemplate.Option> options) {
         QuestionTemplate q = new QuestionTemplate();
         q.setQuestionNumber(number);

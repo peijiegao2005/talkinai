@@ -27,9 +27,9 @@ public class MatchingController {
         log.info("用户寻找灵魂伴侣: userId={}", userId);
 
         return matchingService.findSoulMatch(userId)
-                .flatMap(matchUser ->
-                    chatService.getOrCreateMatchRoom(userId, matchUser.getId())
-                            .map(room -> buildMatchResponse(matchUser, room))
+                .flatMap(matchResult ->
+                    chatService.getOrCreateMatchRoom(userId, matchResult.getMatchedUser().getId())
+                            .map(room -> buildMatchResponse(matchResult, room))
                 )
                 .map(ApiResponse::success)
                 .onErrorResume(e -> {
@@ -63,7 +63,8 @@ public class MatchingController {
                 .thenReturn(ApiResponse.success(null));
     }
 
-    private MatchResponse buildMatchResponse(User matchUser, ChatRoom room) {
+    private MatchResponse buildMatchResponse(MatchingService.MatchResult matchResult, ChatRoom room) {
+        User matchUser = matchResult.getMatchedUser();
         return MatchResponse.builder()
                 .matched(true)
                 .matchUserId(matchUser.getId())
@@ -71,6 +72,13 @@ public class MatchingController {
                 .matchAvatar(matchUser.getAvatar())
                 .roomId(room.getRoomId())
                 .personalityVector(matchUser.getPersonalityVector())
+                .matchScore(matchResult.getMatchScore())
+                .matchLevel(matchResult.getMatchLevelLabel())
+                .matchLevelDescription(matchResult.getMatchLevelDescription())
+                .personalityCompatibility(matchResult.getPersonalityCompatibility())
+                .interestCompatibility(matchResult.getInterestCompatibility())
+                .commonInterests(matchResult.getCommonInterests())
+                .matchReason(matchResult.getMatchReason())
                 .build();
     }
 }

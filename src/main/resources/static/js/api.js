@@ -22,8 +22,11 @@ async function apiRequest(url, options = {}) {
         }
     };
 
+    const fullUrl = `${API_BASE_URL}${url}`;
+    console.log(`API请求: ${options.method || 'GET'} ${fullUrl}`);
+
     try {
-        const response = await fetch(`${API_BASE_URL}${url}`, {
+        const response = await fetch(fullUrl, {
             ...defaultOptions,
             ...options,
             headers: {
@@ -32,9 +35,31 @@ async function apiRequest(url, options = {}) {
             }
         });
 
-        const data = await response.json();
+        console.log(`API响应: ${response.status} ${response.statusText}`);
 
+        let data;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+            console.log('API响应数据:', data);
+        } else {
+            const text = await response.text();
+            console.log('API响应文本:', text.substring(0, 200));
+            // 如果是 HTML 错误页面，提取错误信息
+            if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+                data = { message: `服务器错误: ${response.status} ${response.statusText}` };
+            } else {
+                data = { message: text || '请求失败' };
+            }
+        }
+
+        // HTTP 状态码错误 (404, 500等)
         if (!response.ok) {
+            throw new Error(data.message || data.error || `请求失败: ${response.status}`);
+        }
+
+        // 业务逻辑错误（code 不为 200）
+        if (data.code !== undefined && data.code !== 200) {
             throw new Error(data.message || '请求失败');
         }
 

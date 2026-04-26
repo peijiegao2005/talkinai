@@ -301,11 +301,53 @@ function renderReportPage(reportData) {
                 </div>
             </div>
 
-            <div style="text-align: center; margin-top: 32px;">
+            <div style="text-align: center; margin-top: 32px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
                 <button class="btn btn-primary btn-large" onclick="navigateTo('match')">
                     寻找灵魂匹配
+                </button>
+                <button class="btn btn-secondary" onclick="restartAssessment()">
+                    🔄 重新评估
                 </button>
             </div>
         </div>
     `;
+}
+
+// 重新评估
+async function restartAssessment() {
+    if (!confirm('确定要重新进行人格评估吗？之前的评估记录将被保留。')) {
+        return;
+    }
+
+    try {
+        console.log('正在调用重新评估API...');
+        const response = await post('/assessment/restart', {});
+        console.log('重新评估API返回:', response);
+
+        // 检查响应状态
+        if (response.code !== 200) {
+            throw new Error(response.message || '服务器返回错误');
+        }
+
+        if (!response.data) {
+            throw new Error('服务器返回数据为空');
+        }
+
+        const result = response.data;
+
+        // 重置状态
+        assessmentState = {
+            currentQuestion: 1,
+            totalQuestions: result.totalQuestions,
+            answers: [],
+            sessionId: result.sessionId,
+            isComplete: false
+        };
+
+        renderChatInterface(result.question);
+        showToast('开始重新评估', 'success');
+    } catch (error) {
+        console.error('重新评估失败:', error);
+        showToast('重新开始评估失败: ' + (error.message || '未知错误'), 'error');
+    }
 }

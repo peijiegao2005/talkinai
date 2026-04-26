@@ -3,6 +3,7 @@
 // 路由配置
 const routes = {
     'assessment': renderAssessmentPage,
+    'mood': renderMoodPage,
     'match': renderMatchPage,
     'chat': renderChatPage,
     'profile': renderProfilePage

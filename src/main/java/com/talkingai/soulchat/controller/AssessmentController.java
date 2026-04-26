@@ -67,4 +67,23 @@ public class AssessmentController {
                 .map(result -> ApiResponse.success(result.getCompleted() != null && result.getCompleted()))
                 .doOnError(e -> log.error("Failed to check assessment status for user: {}", userId, e));
     }
+
+    @PostMapping("/restart")
+    public Mono<ApiResponse<StartAssessmentResponse>> restartAssessment(Authentication authentication) {
+        String userId = authentication.getPrincipal().toString();
+        log.info("Restarting assessment for user: {}", userId);
+
+        return assessmentService.restartAssessment(userId)
+                .map(ApiResponse::success)
+                .onErrorResume(e -> {
+                    log.error("Failed to restart assessment for user: {}", userId, e);
+                    return Mono.just(ApiResponse.error(500, "重新评估失败: " + e.getMessage()));
+                });
+    }
+
+    // 测试端点，用于验证服务器是否加载了最新代码
+    @GetMapping("/test")
+    public Mono<ApiResponse<String>> test() {
+        return Mono.just(ApiResponse.success("AssessmentController is working!"));
+    }
 }

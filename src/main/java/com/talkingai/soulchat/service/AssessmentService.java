@@ -47,6 +47,21 @@ public class AssessmentService {
                 );
     }
 
+    public Mono<StartAssessmentResponse> restartAssessment(String userId) {
+        // 清除现有会话（如果存在），重新开始
+        return sessionService.deleteSession(userId)
+                .onErrorResume(e -> {
+                    log.warn("删除会话失败（可能不存在）: {}", e.getMessage());
+                    return Mono.empty();
+                })
+                .then(sessionService.createSession(userId))
+                .flatMap(session ->
+                    questionTemplateRepository.findByQuestionNumber(1)
+                            .map(question -> buildStartResponse(session, question))
+                )
+                .doOnSuccess(r -> log.info("Assessment restarted for user: {}", userId));
+    }
+
     public Mono<AnswerResponse> submitAnswer(String userId, Integer questionNumber, Integer selectedScore) {
         return questionTemplateRepository.findByQuestionNumber(questionNumber)
                 .flatMap(question -> {
