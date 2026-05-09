@@ -121,6 +121,35 @@ public class LlmService {
                 .onErrorReturn("AI分析服务暂时不可用，请稍后再试。");
     }
 
+    /**
+     * 支持对话历史的AI调用
+     * @param messages 对话历史，包含role和content
+     * @return AI回复内容
+     * @throws RuntimeException 当API未配置或调用失败时抛出异常
+     */
+    public Mono<String> chatWithHistory(List<Map<String, String>> messages) {
+        if (apiKey == null || apiKey.isEmpty()) {
+            log.error("LLM API Key未配置，无法调用AI服务");
+            return Mono.error(new RuntimeException("AI服务未配置"));
+        }
+
+        Map<String, Object> requestBody = Map.of(
+                "model", model,
+                "messages", messages,
+                "temperature", 0.8,
+                "max_tokens", 800
+        );
+
+        return getWebClient()
+                .post()
+                .uri("/chat/completions")
+                .bodyValue(requestBody)
+                .retrieve()
+                .bodyToMono(String.class)
+                .map(this::extractContent)
+                .doOnError(e -> log.error("LLM对话调用失败: {}", e.getMessage()));
+    }
+
     private String extractContent(String response) {
         try {
             JsonNode root = objectMapper.readTree(response);
