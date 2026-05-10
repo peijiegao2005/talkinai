@@ -29,13 +29,25 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .addFilterAt(jwtAuthenticationFilter, SecurityWebFiltersOrder.AUTHENTICATION)
                 .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers("/", "/index.html", "/css/**", "/js/**", "/favicon.ico").permitAll()
+                        .pathMatchers("/", "/index.html", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                         .pathMatchers("/api/auth/**", "/ws/**").permitAll()
                         .pathMatchers("/api/public/**").permitAll()
                         .anyExchange().authenticated()
                 )
                 .httpBasic(httpBasic -> httpBasic.disable())
                 .formLogin(formLogin -> formLogin.disable())
+                .exceptionHandling(exceptionHandling -> exceptionHandling
+                        .authenticationEntryPoint((exchange, ex) -> {
+                            exchange.getResponse().setStatusCode(org.springframework.http.HttpStatus.UNAUTHORIZED);
+                            exchange.getResponse().getHeaders().setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+                            String body = "{\"code\":401,\"message\":\"请先登录\",\"data\":null}";
+                            return exchange.getResponse().writeWith(
+                                    reactor.core.publisher.Mono.just(
+                                            exchange.getResponse().bufferFactory().wrap(body.getBytes())
+                                    )
+                            );
+                        })
+                )
                 .build();
     }
 }

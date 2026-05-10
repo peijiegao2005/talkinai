@@ -299,11 +299,17 @@ public class MoodRoomService {
     }
 
     /**
-     * 获取房间历史消息（最近50条）
+     * 获取房间历史消息（最近50条，只返回用户加入房间后的消息）
      */
-    public Flux<MoodChatMessage> getRoomHistory(String roomId) {
-        return messageRepository.findByRoomIdOrderByTimestampDesc(roomId)
-                .take(50);
+    public Flux<MoodChatMessage> getRoomHistory(String roomId, String userId) {
+        return roomUserRepository.findByUserId(userId)
+                .filter(user -> roomId.equals(user.getRoomId()))
+                .flatMapMany(user -> {
+                    Long joinedAt = user.getJoinedAt();
+                    return messageRepository.findByRoomIdAndTimestampGreaterThanEqualOrderByTimestampDesc(roomId, joinedAt)
+                            .take(50);
+                })
+                .switchIfEmpty(Flux.empty());
     }
 
     // ==================== Private Methods ====================

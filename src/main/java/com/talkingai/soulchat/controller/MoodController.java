@@ -114,8 +114,10 @@ public class MoodController {
 
     @GetMapping("/rooms/{roomId}/history")
     public Mono<ApiResponse<java.util.List<com.talkingai.soulchat.entity.MoodChatMessage>>> getRoomHistory(
+            Authentication auth,
             @PathVariable String roomId) {
-        return moodRoomService.getRoomHistory(roomId)
+        String userId = auth.getPrincipal().toString();
+        return moodRoomService.getRoomHistory(roomId, userId)
                 .collectList()
                 .map(ApiResponse::success);
     }

@@ -11,4 +11,6 @@ public interface MoodChatMessageRepository extends ReactiveMongoRepository<MoodC
     Flux<MoodChatMessage> findByRoomIdOrderByTimestampDesc(String roomId);
 
     Flux<MoodChatMessage> findByRoomIdAndTimestampGreaterThanOrderByTimestampAsc(String roomId, Long timestamp);
+
+    Flux<MoodChatMessage> findByRoomIdAndTimestampGreaterThanEqualOrderByTimestampDesc(String roomId, Long timestamp);
 }
