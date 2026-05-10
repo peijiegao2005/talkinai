@@ -1,36 +1,98 @@
 spring:
   application:
     name: soulchat
-  
+
   data:
     mongodb:
       uri: mongodb://localhost:27017/soulchat
       auto-index-creation: true
-    
+
     redis:
       host: localhost
       port: 6379
       database: 0
       timeout: 2000ms
+      connect-timeout: 2000ms
       lettuce:
         pool:
-          max-active: 8
+          max-active: 16
           max-idle: 8
-          min-idle: 0
+          min-idle: 4
+          max-wait: 3000ms
+          time-between-eviction-runs: 60s
+        shutdown-timeout: 500ms
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASS:guest}
+    requested-heartbeat: 30s
+    listener:
+      simple:
+        prefetch: 50
+        concurrency: 2
+        max-concurrency: 4
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000ms
+    template:
+      retry:
+        enabled: true
+        max-attempts: 3
+
+  reactor:
+    netty:
+      worker-count: 4
+      selector-count: 2
 
 server:
   port: 8080
+  netty:
+    connection-timeout: 30s
+    idle-timeout: 60s
 
+# ==================== JWT ====================
 jwt:
   secret: your-256-bit-secret-key-for-jwt-signing-must-be-at-least-32-characters-long
   expiration: 86400000
 
+# ==================== LLM ====================
 llm:
   api-key: ${OPENAI_API_KEY:}
   base-url: ${LLM_BASE_URL:https://api.openai.com/v1}
   model: ${LLM_MODEL:gpt-3.5-turbo}
+  timeout: 8s
 
+# ==================== 匹配引擎参数 ====================
+matching:
+  max-candidates: 100
+  max-queue-size: 500
+  batch-size: 20
+  schedule-interval: 5000
+  personality-weight: 0.50
+  interest-weight: 0.30
+  online-weight: 0.20
+  threshold-high: 0.75
+  threshold-medium: 0.55
+  threshold-low: 0.40
+
+# ==================== 接口限流 ====================
+rate-limit:
+  match:
+    permits-per-second: 5
+    burst-size: 10
+  mood-assessment:
+    permits-per-second: 3
+    burst-size: 5
+
+# ==================== 日志 ====================
 logging:
+  charset:
+    console: UTF-8
+    file: UTF-8
   level:
-    com.talkingai.soulchat: DEBUG
-    org.springframework.data.mongodb: DEBUG
+    com.talkingai.soulchat: INFO
+    org.springframework.data.mongodb: WARN
+    org.springframework.amqp: WARN

@@ -13,6 +13,8 @@ import java.util.List;
 @AllArgsConstructor
 public class MatchResponse {
     private Boolean matched;
+    private Boolean waiting;    // 是否在匹配池等待中
+    private Integer queuePosition; // 队列位置
     private String matchUserId;
     private String matchNickname;
     private String matchAvatar;

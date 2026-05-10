@@ -4,7 +4,9 @@ let matchState = {
     isSearching: false,
     matchedUser: null,
     roomId: null,
-    matchDetails: null
+    matchDetails: null,
+    pollTimer: null,
+    bgWs: null  // 后台WebSocket，等待匹配通知
 };
 
 // 渲染匹配页面
@@ -80,11 +82,15 @@ async function startMatching() {
     btn.disabled = true;
     btn.innerHTML = '<span class="loading"></span> 寻找中...';
 
+    matchState.isSearching = true;
+
     try {
         const data = await post('/match/find-soul', {});
         const result = data.data;
 
         if (result.matched) {
+            // 匹配成功
+            stopPolling();
             matchState.matchedUser = {
                 userId: result.matchUserId,
                 nickname: result.matchNickname,
@@ -103,12 +109,182 @@ async function startMatching() {
 
             renderMatchResult(document.getElementById('main-container'));
             showToast(`匹配成功！${result.matchLevel}`, 'success');
+        } else if (result.waiting) {
+            // 进入匹配池等待中，启动轮询
+            showSearchingAnimation(result.queuePosition || 1);
+            startPolling();
+        } else {
+            // 其他情况
+            stopPolling();
+            btn.disabled = false;
+            btn.innerHTML = '开始匹配';
+            showToast(result.matchReason || '匹配失败，请重试', 'error');
         }
     } catch (error) {
-        showToast(error.message, 'error');
+        stopPolling();
         btn.disabled = false;
         btn.innerHTML = '开始匹配';
+        showToast(error.message, 'error');
     }
+}
+
+// 显示搜索中动画
+function showSearchingAnimation(queuePosition) {
+    const container = document.getElementById('main-container');
+    container.innerHTML = `
+        <div class="page match-container">
+            <div class="match-animation" style="animation: pulse 1.5s ease-in-out infinite;">
+                <div style="font-size: 80px; margin-bottom: 24px;">🔍</div>
+            </div>
+            <h1 class="page-title" style="margin-bottom: 16px;">正在寻找灵魂伴侣...</h1>
+            <p class="page-subtitle" style="max-width: 400px; margin: 0 auto 8px;">
+                已进入匹配池，当前队列第 ${queuePosition} 位
+            </p>
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 40px;">
+                系统正在为你匹配最契合的人，请耐心等待
+            </p>
+            <div style="display: flex; justify-content: center; gap: 12px;">
+                <span class="loading-dot" style="width: 10px; height: 10px; background: var(--gradient-1); border-radius: 50%; animation: bounce 0.6s infinite alternate;"></span>
+                <span class="loading-dot" style="width: 10px; height: 10px; background: var(--gradient-2); border-radius: 50%; animation: bounce 0.6s 0.2s infinite alternate;"></span>
+                <span class="loading-dot" style="width: 10px; height: 10px; background: var(--gradient-3); border-radius: 50%; animation: bounce 0.6s 0.4s infinite alternate;"></span>
+            </div>
+            <div style="margin-top: 48px;">
+                <button class="btn btn-secondary" onclick="cancelMatching()">
+                    取消匹配
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// 开始轮询
+function startPolling() {
+    stopPolling(); // 先清除之前的
+    matchState.pollTimer = setInterval(async () => {
+        try {
+            const data = await post('/match/find-soul', {});
+            const result = data.data;
+
+            if (result.matched) {
+                // 匹配成功！
+                stopPolling();
+                closeBgWs();
+                matchState.isSearching = false;
+                matchState.matchedUser = {
+                    userId: result.matchUserId,
+                    nickname: result.matchNickname,
+                    avatar: result.matchAvatar
+                };
+                matchState.roomId = result.roomId;
+                matchState.matchDetails = {
+                    matchScore: result.matchScore,
+                    matchLevel: result.matchLevel,
+                    matchLevelDescription: result.matchLevelDescription,
+                    personalityCompatibility: result.personalityCompatibility,
+                    interestCompatibility: result.interestCompatibility,
+                    commonInterests: result.commonInterests,
+                    matchReason: result.matchReason
+                };
+
+                renderMatchResult(document.getElementById('main-container'));
+                showToast(`匹配成功！${result.matchLevel}`, 'success');
+            } else if (result.waiting) {
+                // 更新队列位置
+                const posEl = document.querySelector('.page-subtitle');
+                if (posEl) {
+                    posEl.textContent = `已进入匹配池，当前队列第 ${result.queuePosition || 1} 位`;
+                }
+            }
+        } catch (error) {
+            console.log('轮询匹配:', error.message);
+        }
+    }, 5000);
+
+    // 同时连接后台WebSocket，接收实时匹配通知
+    connectBgWs();
+}
+
+// 连接后台WebSocket（用于接收对方发来的匹配通知）
+function connectBgWs() {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const wsUrl = `ws://${window.location.host}/ws/chat?token=${token}`;
+    matchState.bgWs = new WebSocket(wsUrl);
+
+    matchState.bgWs.onopen = () => {
+        console.log('后台WebSocket已连接，等待匹配通知');
+    };
+
+    matchState.bgWs.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'MATCHED') {
+                // 被动匹配成功！停止轮询
+                stopPolling();
+                matchState.isSearching = false;
+                matchState.matchedUser = {
+                    userId: data.matchUserId,
+                    nickname: data.matchNickname || '匹配用户',
+                    avatar: data.matchAvatar
+                };
+                matchState.roomId = data.roomId;
+                matchState.matchDetails = {
+                    matchScore: 0,
+                    matchLevel: '匹配成功',
+                    matchLevelDescription: '对方找到了你',
+                    personalityCompatibility: 0,
+                    interestCompatibility: 0,
+                    commonInterests: [],
+                    matchReason: '对方主动与你匹配'
+                };
+
+                // 当前如果正在显示匹配等待页面，渲染结果
+                renderMatchResult(document.getElementById('main-container'));
+                showToast('有人与你匹配成功！', 'success');
+            }
+        } catch (e) {
+            console.error('后台WS消息解析失败:', e);
+        }
+    };
+
+    matchState.bgWs.onerror = () => {
+        console.log('后台WebSocket连接失败');
+    };
+
+    matchState.bgWs.onclose = () => {
+        console.log('后台WebSocket已关闭');
+    };
+}
+
+// 关闭后台WebSocket
+function closeBgWs() {
+    if (matchState.bgWs) {
+        matchState.bgWs.close();
+        matchState.bgWs = null;
+    }
+}
+
+// 停止轮询
+function stopPolling() {
+    if (matchState.pollTimer) {
+        clearInterval(matchState.pollTimer);
+        matchState.pollTimer = null;
+    }
+    closeBgWs();
+    matchState.isSearching = false;
+}
+
+// 取消匹配
+async function cancelMatching() {
+    stopPolling();
+    try {
+        await post('/match/leave-queue', {});
+    } catch (e) {
+        console.error('离开匹配队列失败:', e);
+    }
+    matchState.isSearching = false;
+    renderMatchPage();
 }
 
 // 渲染匹配结果
@@ -232,5 +408,6 @@ function continueMatching() {
     matchState.matchedUser = null;
     matchState.roomId = null;
     matchState.matchDetails = null;
+    stopPolling();
     renderMatchPage();
 }

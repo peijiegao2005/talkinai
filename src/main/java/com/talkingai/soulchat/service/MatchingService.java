@@ -1,11 +1,14 @@
 package com.talkingai.soulchat.service;
 
+import com.talkingai.soulchat.entity.ChatRoom;
 import com.talkingai.soulchat.entity.User;
 import com.talkingai.soulchat.entity.UserProfile;
+import com.talkingai.soulchat.repository.ChatRoomRepository;
 import com.talkingai.soulchat.repository.UserProfileRepository;
 import com.talkingai.soulchat.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -23,29 +26,41 @@ public class MatchingService {
     private final UserRepository userRepository;
     private final UserProfileRepository userProfileRepository;
     private final ReactiveStringRedisTemplate redisTemplate;
+    private final ChatRoomRepository chatRoomRepository;
 
     private static final String ONLINE_KEY_PREFIX = "user:online:";
     private static final String MATCHING_QUEUE_KEY = "matching:queue";
     private static final Duration ONLINE_TTL = Duration.ofMinutes(5);
 
-    // 匹配算法权重配置
-    private static final double WEIGHT_PERSONALITY = 0.5;      // 人格相似度权重 50%
-    private static final double WEIGHT_INTERESTS = 0.3;        // 共同爱好权重 30%
-    private static final double WEIGHT_ONLINE_STATUS = 0.2;    // 在线状态权重 20%
+    // 匹配算法权重配置（可从配置文件覆盖）
+    @Value("${matching.personality-weight:0.50}")
+    private double weightPersonality;
+
+    @Value("${matching.interest-weight:0.30}")
+    private double weightInterest;
+
+    @Value("${matching.online-weight:0.20}")
+    private double weightOnline;
+
+    @Value("${matching.threshold-high:0.75}")
+    private double thresholdHigh;
+
+    @Value("${matching.threshold-medium:0.55}")
+    private double thresholdMedium;
+
+    @Value("${matching.threshold-low:0.40}")
+    private double thresholdLow;
+
+    @Value("${matching.max-candidates:100}")
+    private int maxCandidates;
+
+    @Value("${matching.max-queue-size:500}")
+    private int maxQueueSize;
 
     // 人格维度权重（大五人格）
     private static final double[] DIMENSION_WEIGHTS = {
-            0.25,  // extraversion - 外向性（社交匹配重要）
-            0.20,  // openness - 开放性（兴趣契合）
-            0.25,  // agreeableness - 宜人性（相处和谐）
-            0.15,  // conscientiousness - 尽责性（生活方式）
-            0.15   // emotional_stability - 情绪稳定性（情绪共鸣）
+            0.25, 0.20, 0.25, 0.15, 0.15
     };
-
-    // 匹配阈值配置
-    private static final double THRESHOLD_HIGH = 0.75;    // 高匹配度阈值
-    private static final double THRESHOLD_MEDIUM = 0.55;  // 中等匹配度阈值
-    private static final double THRESHOLD_LOW = 0.40;     // 最低可接受阈值
 
     /**
      * 寻找灵魂匹配 - 多级匹配策略
@@ -74,9 +89,43 @@ public class MatchingService {
                         .collectList()
                         .flatMap(availableUsers -> {
                             if (availableUsers.isEmpty()) {
-                                // 没有可用用户，加入队列等待
-                                return addToMatchingQueue(userId)
-                                        .then(Mono.error(new RuntimeException("正在寻找灵魂伴侣，请稍后再试")));
+                                // 检查用户是否已被匹配（已有聊天室）
+                                return chatRoomRepository.findByParticipantsContainingAndActiveTrue(userId)
+                                        .collectList()
+                                        .flatMap(rooms -> {
+                                            if (!rooms.isEmpty()) {
+                                                // 已被匹配！查找匹配对象信息返回
+                                                ChatRoom room = rooms.get(0);
+                                                String partnerId = room.getParticipants().stream()
+                                                        .filter(p -> !p.equals(userId))
+                                                        .findFirst()
+                                                        .orElse(userId);
+                                                return userRepository.findById(partnerId)
+                                                        .map(partner -> MatchResult.builder()
+                                                                .matched(true)
+                                                                .waiting(false)
+                                                                .matchedUser(partner)
+                                                                .matchScore(1.0)
+                                                                .matchLevel(MatchLevel.HIGH)
+                                                                .matchReason("对方已与你匹配")
+                                                                .build())
+                                                        .switchIfEmpty(Mono.just(MatchResult.builder()
+                                                                .matched(false)
+                                                                .waiting(true)
+                                                                .queuePosition(1)
+                                                                .matchReason("匹配已完成，请刷新聊天列表")
+                                                                .build()));
+                                            }
+                                            // 没有可用用户且未被匹配，加入队列等待
+                                            return addToMatchingQueue(userId)
+                                                    .then(getQueuePosition(userId))
+                                                    .map(position -> MatchResult.builder()
+                                                            .matched(false)
+                                                            .waiting(true)
+                                                            .queuePosition(position)
+                                                            .matchReason("正在寻找灵魂伴侣，已进入匹配池第" + position + "位，请稍候...")
+                                                            .build());
+                                        });
                             }
 
                             // 计算每个候选用户的匹配分数
@@ -92,7 +141,7 @@ public class MatchingService {
                                         // 1. 优先选择达到阈值的匹配
                                         // 2. 如果没有，选择分数最高的（至少有一个候选）
                                         Optional<MatchCandidate> bestMatch = scoredCandidates.stream()
-                                                .filter(c -> c.getTotalScore() >= THRESHOLD_LOW)
+                                                .filter(c -> c.getTotalScore() >= thresholdLow)
                                                 .findFirst();
 
                                         if (bestMatch.isPresent()) {
@@ -105,7 +154,7 @@ public class MatchingService {
                                             log.info("降级匹配: 用户 {} 匹配到 {}，分数 {}% (低于阈值 {}%)",
                                                     userId, fallbackMatch.getUser().getId(),
                                                     String.format("%.1f", fallbackMatch.getTotalScore() * 100),
-                                                    String.format("%.0f", THRESHOLD_LOW * 100));
+                                                    String.format("%.0f", thresholdLow * 100));
                                             return createMatchResult(userId, fallbackMatch);
                                         } else {
                                             // 没有可用候选，加入队列等待
@@ -141,20 +190,20 @@ public class MatchingService {
                     double onlineScore = 1.0;
 
                     // 4. 计算加权总分
-                    double totalScore = personalityScore * WEIGHT_PERSONALITY
-                            + interestScore * WEIGHT_INTERESTS
-                            + onlineScore * WEIGHT_ONLINE_STATUS;
+                    double totalScore = personalityScore * weightPersonality
+                            + interestScore * weightInterest
+                            + onlineScore * weightOnline;
 
                     // 5. 确定匹配等级
                     MatchLevel level;
-                    if (totalScore >= THRESHOLD_HIGH && personalityScore >= 0.7) {
-                        level = MatchLevel.SOULMATE;  // 灵魂伴侣级
-                    } else if (totalScore >= THRESHOLD_MEDIUM) {
-                        level = MatchLevel.HIGH;      // 高匹配
-                    } else if (totalScore >= THRESHOLD_LOW) {
-                        level = MatchLevel.MEDIUM;    // 中等匹配
+                    if (totalScore >= thresholdHigh && personalityScore >= 0.7) {
+                        level = MatchLevel.SOULMATE;
+                    } else if (totalScore >= thresholdMedium) {
+                        level = MatchLevel.HIGH;
+                    } else if (totalScore >= thresholdLow) {
+                        level = MatchLevel.MEDIUM;
                     } else {
-                        level = MatchLevel.LOW;       // 低匹配
+                        level = MatchLevel.LOW;
                     }
 
                     return MatchCandidate.builder()
@@ -240,11 +289,12 @@ public class MatchingService {
     }
 
     /**
-     * 获取所有可用用户（在线用户 + 匹配队列中的用户）
+     * 获取所有可用用户（在线用户 + 匹配队列中的用户，限制候选数）
      */
     private Flux<User> getAllAvailableUsers(String excludeUserId) {
         // 1. 获取在线用户
         Flux<User> onlineUsers = redisTemplate.keys(ONLINE_KEY_PREFIX + "*")
+                .take(maxCandidates)
                 .map(key -> key.replace(ONLINE_KEY_PREFIX, ""))
                 .filter(userId -> !userId.equals(excludeUserId))
                 .flatMap(userRepository::findById);
@@ -252,12 +302,14 @@ public class MatchingService {
         // 2. 获取匹配队列中的用户
         Flux<User> queueUsers = redisTemplate.opsForSet()
                 .members(MATCHING_QUEUE_KEY)
+                .take(maxCandidates)
                 .filter(userId -> !userId.equals(excludeUserId))
                 .flatMap(userRepository::findById);
 
         // 合并两个流并去重
         return Flux.concat(onlineUsers, queueUsers)
-                .distinct(User::getId);
+                .distinct(User::getId)
+                .take(maxCandidates);
     }
 
     /**
@@ -312,12 +364,63 @@ public class MatchingService {
     }
 
     /**
-     * 加入匹配队列
+     * 加入匹配队列（限制队列大小）
      */
     private Mono<Void> addToMatchingQueue(String userId) {
         return redisTemplate.opsForSet()
-                .add(MATCHING_QUEUE_KEY, userId)
-                .then();
+                .size(MATCHING_QUEUE_KEY)
+                .flatMap(size -> {
+                    if (size >= maxQueueSize) {
+                        log.warn("匹配队列已满: {}/{}", size, maxQueueSize);
+                        return Mono.error(new RuntimeException("匹配服务繁忙，请稍后再试"));
+                    }
+                    return redisTemplate.opsForSet()
+                            .add(MATCHING_QUEUE_KEY, userId)
+                            .then();
+                });
+    }
+
+    /**
+     * 获取用户在匹配队列中的位置
+     */
+    private Mono<Integer> getQueuePosition(String userId) {
+        return redisTemplate.opsForSet()
+                .size(MATCHING_QUEUE_KEY)
+                .map(size -> Math.max(1, size.intValue()));
+    }
+
+    /**
+     * 查询匹配队列状态
+     */
+    public Mono<java.util.Map<String, Object>> getQueueStatus(String userId) {
+        return redisTemplate.opsForSet()
+                .isMember(MATCHING_QUEUE_KEY, userId)
+                .flatMap(isInQueue -> {
+                    if (!isInQueue) {
+                        return Mono.just(java.util.Map.of(
+                                "inQueue", false,
+                                "queueSize", 0,
+                                "message", "未在匹配池中"
+                        ));
+                    }
+                    return redisTemplate.opsForSet()
+                            .size(MATCHING_QUEUE_KEY)
+                            .map(size -> java.util.Map.of(
+                                    "inQueue", true,
+                                    "queueSize", size,
+                                    "message", "正在匹配池中等待，当前共" + size + "人"
+                            ));
+                });
+    }
+
+    /**
+     * 离开匹配队列
+     */
+    public Mono<Void> leaveQueue(String userId) {
+        return redisTemplate.opsForSet()
+                .remove(MATCHING_QUEUE_KEY, userId)
+                .then()
+                .doOnSuccess(v -> log.info("用户 {} 离开匹配队列", userId));
     }
 
     public Mono<Void> markUserOnline(String userId) {
@@ -389,6 +492,11 @@ public class MatchingService {
         private double interestCompatibility;
         private List<String> commonInterests;
         private String matchReason;
+        @lombok.Builder.Default
+        private boolean matched = true;
+        @lombok.Builder.Default
+        private boolean waiting = false;
+        private int queuePosition;
 
         public String getMatchLevelLabel() {
             return matchLevel != null ? matchLevel.getLabel() : "未知";

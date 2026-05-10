@@ -1,5 +1,6 @@
 package com.talkingai.soulchat.handler;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.talkingai.soulchat.entity.ChatMessage;
 import com.talkingai.soulchat.service.ChatService;
@@ -14,6 +15,9 @@ import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -26,9 +30,7 @@ public class ChatWebSocketHandler implements WebSocketHandler {
     private final JwtUtil jwtUtil;
     private final ObjectMapper objectMapper;
 
-    // 用户ID -> WebSocketSession
     private static final ConcurrentHashMap<String, WebSocketSession> userSessions = new ConcurrentHashMap<>();
-    // 用户ID -> Sink (用于发送消息给特定用户)
     private static final ConcurrentHashMap<String, Sinks.Many<String>> userSinks = new ConcurrentHashMap<>();
 
     @Override
@@ -39,44 +41,37 @@ public class ChatWebSocketHandler implements WebSocketHandler {
         }
 
         String userId = jwtUtil.getUserIdFromToken(token);
-        String username = jwtUtil.getUsernameFromToken(token);
+        log.info("WebSocket connected: userId={}, sessionId={}", userId, session.getId());
 
-        log.info("WebSocket连接: userId={}, sessionId={}", userId, session.getId());
-
-        // 标记用户在线
         matchingService.markUserOnline(userId).subscribe();
 
-        // 为该用户创建消息Sink
         Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
         userSessions.put(userId, session);
         userSinks.put(userId, sink);
 
-        // 处理接收到的消息
         Mono<Void> input = session.receive()
                 .map(msg -> msg.getPayloadAsText())
                 .flatMap(message -> handleMessage(userId, message))
                 .then();
 
-        // 发送消息给客户端
         Mono<Void> output = session.send(
-                sink.asFlux()
-                        .map(session::textMessage)
+                sink.asFlux().map(session::textMessage)
         );
 
-        // 连接断开时清理
         Mono<Void> cleanup = Mono.fromRunnable(() -> {
-            log.info("WebSocket断开: userId={}", userId);
+            log.info("WebSocket disconnected: userId={}", userId);
             userSessions.remove(userId);
-            userSinks.remove(userId);
+            Sinks.Many<String> removed = userSinks.remove(userId);
+            if (removed != null) {
+                removed.tryEmitComplete();
+            }
             matchingService.markUserOffline(userId).subscribe();
         });
 
-        return Mono.zip(input, output)
-                .then(cleanup)
-                .onErrorResume(e -> {
-                    log.error("WebSocket错误: userId={}, error={}", userId, e.getMessage());
-                    return cleanup;
-                });
+        return Mono.zip(input, output).then(cleanup).onErrorResume(e -> {
+            log.error("WebSocket error: userId={}, error={}", userId, e.getMessage());
+            return cleanup;
+        });
     }
 
     private Mono<Void> handleMessage(String userId, String messageJson) {
@@ -91,7 +86,7 @@ public class ChatWebSocketHandler implements WebSocketHandler {
                 default -> Mono.empty();
             };
         } catch (Exception e) {
-            log.error("解析消息失败: {}", e.getMessage());
+            log.error("Failed to parse message: {}", e.getMessage());
             return Mono.empty();
         }
     }
@@ -99,13 +94,24 @@ public class ChatWebSocketHandler implements WebSocketHandler {
     private Mono<Void> handleChatMessage(String senderId, WebSocketMessage message) {
         String receiverId = message.getReceiverId();
         String content = message.getContent();
+        String localId = message.getLocalId();
+        log.info("Chat message: senderId={}, receiverId={}, content={}, localId={}", senderId, receiverId, content, localId);
 
         return chatService.saveMessage(senderId, receiverId, content)
                 .flatMap(savedMessage -> {
-                    // 发送给接收者
-                    sendMessageToUser(receiverId, savedMessage);
-                    // 发送确认给发送者
-                    sendMessageToUser(senderId, savedMessage);
+                    Map<String, Object> msgPacket = new HashMap<>();
+                    msgPacket.put("type", "CHAT");
+                    msgPacket.put("id", savedMessage.getId() != null ? savedMessage.getId() : "");
+                    msgPacket.put("senderId", savedMessage.getSenderId());
+                    msgPacket.put("receiverId", savedMessage.getReceiverId() != null ? savedMessage.getReceiverId() : "");
+                    msgPacket.put("content", savedMessage.getContent());
+                    msgPacket.put("timestamp", savedMessage.getTimestamp());
+                    if (localId != null && !localId.isEmpty()) {
+                        msgPacket.put("_localId", localId);
+                    }
+
+                    sendToUser(receiverId, msgPacket);
+                    sendToUser(senderId, msgPacket);
                     return Mono.empty();
                 });
     }
@@ -113,12 +119,10 @@ public class ChatWebSocketHandler implements WebSocketHandler {
     private Mono<Void> handleJoinRoom(String userId, WebSocketMessage message) {
         String roomId = message.getRoomId();
         return chatService.joinRoom(userId, roomId)
-                .doOnSuccess(v -> {
-                    WebSocketMessage systemMsg = new WebSocketMessage();
-                    systemMsg.setType("SYSTEM");
-                    systemMsg.setContent("已加入聊天室");
-                    sendMessageToUser(userId, systemMsg);
-                })
+                .doOnSuccess(v -> sendToUser(userId, Map.of(
+                        "type", "SYSTEM",
+                        "content", "已加入聊天室"
+                )))
                 .then();
     }
 
@@ -129,22 +133,39 @@ public class ChatWebSocketHandler implements WebSocketHandler {
 
     private Mono<Void> handleTyping(String userId, WebSocketMessage message) {
         String receiverId = message.getReceiverId();
-        WebSocketMessage typingMsg = new WebSocketMessage();
-        typingMsg.setType("TYPING");
-        typingMsg.setSenderId(userId);
-        sendMessageToUser(receiverId, typingMsg);
+        sendToUser(receiverId, Map.of(
+                "type", "TYPING",
+                "senderId", userId
+        ));
         return Mono.empty();
     }
 
-    public void sendMessageToUser(String userId, Object message) {
+    public void sendMatchNotification(String userId, String partnerId, String partnerNickname,
+                                       String partnerAvatar, String roomId) {
+        sendToUser(userId, Map.of(
+                "type", "MATCHED",
+                "matchUserId", partnerId,
+                "matchNickname", partnerNickname,
+                "matchAvatar", partnerAvatar != null ? partnerAvatar : "👤",
+                "roomId", roomId
+        ));
+    }
+
+    private void sendToUser(String userId, Object message) {
         Sinks.Many<String> sink = userSinks.get(userId);
-        if (sink != null) {
-            try {
-                String json = objectMapper.writeValueAsString(message);
-                sink.tryEmitNext(json);
-            } catch (Exception e) {
-                log.error("发送消息失败: userId={}, error={}", userId, e.getMessage());
+        if (sink == null) {
+            List<String> onlineIds = List.copyOf(userSinks.keySet());
+            log.warn("sendToUser FAILED: target userId={} not connected. online users: {}", userId, onlineIds);
+            return;
+        }
+        try {
+            String json = objectMapper.writeValueAsString(message);
+            Sinks.EmitResult result = sink.tryEmitNext(json);
+            if (result.isFailure()) {
+                log.warn("sendToUser emit FAILED: userId={}, result={}", userId, result);
             }
+        } catch (Exception e) {
+            log.error("sendToUser error: userId={}, error={}", userId, e.getMessage());
         }
     }
 
@@ -164,5 +185,7 @@ public class ChatWebSocketHandler implements WebSocketHandler {
         private String roomId;
         private String content;
         private Long timestamp;
+        @JsonProperty("_localId")
+        private String localId;
     }
 }

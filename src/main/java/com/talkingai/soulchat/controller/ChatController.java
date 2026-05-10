@@ -8,10 +8,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -23,7 +23,7 @@ public class ChatController {
     private final ChatService chatService;
 
     @GetMapping("/messages/private/{userId}")
-    public Mono<ApiResponse<Flux<ChatMessage>>> getPrivateMessages(
+    public Mono<ApiResponse<List<ChatMessage>>> getPrivateMessages(
             Authentication authentication,
             @PathVariable String userId,
             @RequestParam(defaultValue = "0") int page,
@@ -31,30 +31,33 @@ public class ChatController {
         String currentUserId = authentication.getPrincipal().toString();
         log.info("获取私聊消息: currentUser={}, targetUser={}", currentUserId, userId);
 
-        Flux<ChatMessage> messages = chatService.getPrivateMessages(currentUserId, userId, page, size);
-        return Mono.just(ApiResponse.success(messages));
+        return chatService.getPrivateMessages(currentUserId, userId, page, size)
+                .collectList()
+                .map(ApiResponse::success);
     }
 
     @GetMapping("/messages/room/{roomId}")
-    public Mono<ApiResponse<Flux<ChatMessage>>> getRoomMessages(
+    public Mono<ApiResponse<List<ChatMessage>>> getRoomMessages(
             Authentication authentication,
             @PathVariable String roomId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "50") int size) {
         String userId = authentication.getPrincipal().toString();
         log.info("获取群聊消息: userId={}, roomId={}", userId, roomId);
 
-        Flux<ChatMessage> messages = chatService.getRoomMessages(roomId, page, size);
-        return Mono.just(ApiResponse.success(messages));
+        return chatService.getRoomMessages(roomId, page, size)
+                .collectList()
+                .map(ApiResponse::success);
     }
 
     @GetMapping("/rooms")
-    public Mono<ApiResponse<Flux<ChatRoom>>> getMyRooms(Authentication authentication) {
+    public Mono<ApiResponse<List<ChatRoom>>> getMyRooms(Authentication authentication) {
         String userId = authentication.getPrincipal().toString();
         log.info("获取用户聊天室列表: userId={}", userId);
 
-        Flux<ChatRoom> rooms = chatService.getUserRooms(userId);
-        return Mono.just(ApiResponse.success(rooms));
+        return chatService.getUserRooms(userId)
+                .collectList()
+                .map(ApiResponse::success);
     }
 
     @GetMapping("/unread-count")

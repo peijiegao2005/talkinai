@@ -1,5 +1,8 @@
 // SoulChat 主应用
 
+// 当前页面，防止hashchange重复渲染
+let currentPage = '';
+
 // 路由配置
 const routes = {
     'assessment': renderAssessmentPage,
@@ -45,6 +48,9 @@ function navigateTo(page) {
         }
     });
 
+    // 标记当前页面（必须在改hash之前，防止hashchange重复渲染）
+    currentPage = page;
+
     // 更新URL
     window.location.hash = page;
 
@@ -52,10 +58,11 @@ function navigateTo(page) {
     routes[page]();
 }
 
-// 监听hash变化
+// 监听hash变化（仅响应用户手动操作，如浏览器前进后退）
 window.addEventListener('hashchange', () => {
     const hash = window.location.hash.slice(1);
-    if (routes[hash]) {
+    if (hash && routes[hash] && hash !== currentPage) {
+        currentPage = hash;
         routes[hash]();
     }
 });
