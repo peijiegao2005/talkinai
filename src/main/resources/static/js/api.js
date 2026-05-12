@@ -98,3 +98,10 @@ function patch(url, body) {
         body: JSON.stringify(body)
     });
 }
+
+// DELETE请求
+function del(url) {
+    return apiRequest(url, {
+        method: 'DELETE'
+    });
+}

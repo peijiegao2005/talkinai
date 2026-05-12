@@ -26,7 +26,6 @@ function renderChatPage() {
                 <div class="chat-list" id="chat-list"></div>
             </div>
             <div class="chat-main" id="chat-main">
-                <div class="empty-state"><div class="empty-icon">💬</div><p>选择一个聊天开始对话</p></div>
             </div>
         </div>`;
 
@@ -64,19 +63,45 @@ function renderChatList() {
     var currentUserId = chatState.myUserId;
     list.innerHTML = chatState.rooms.map(function(room) {
         if (!room || !room.roomId) return '';
-        var partnerId = '';
-        if (room.participants && room.participants.length > 1) {
-            for (var i = 0; i < room.participants.length; i++) {
-                if (room.participants[i] !== currentUserId) { partnerId = room.participants[i]; break; }
-            }
-        }
-        var name = room.name || '私聊';
+        
+        // 使用对方昵称，如果没有则显示"未知用户"
+        var displayName = room.partnerNickname || room.name || '未知用户';
+        var partnerId = room.partnerId || '';
+        var avatar = room.partnerAvatar || '👤';
+        
         return '<div class="chat-item' + (chatState.currentRoom === room.roomId ? ' active' : '') + '"'
-            + ' onclick="openChatRoom(\'' + room.roomId + '\',{nickname:\'' + escapeHtml(name) + '\',userId:\'' + partnerId + '\'})">'
-            + '<div class="chat-item-avatar">👤</div>'
-            + '<div class="chat-item-info"><div class="chat-item-name">' + escapeHtml(name) + '</div>'
-            + '<div class="chat-item-preview">点击开始聊天</div></div></div>';
+            + ' onclick="openChatRoom(\'' + room.roomId + '\',{nickname:\'' + escapeHtml(displayName) + '\',userId:\'' + partnerId + '\'})"'
+            + ' oncontextmenu="showRoomMenu(event, \'' + room.roomId + '\')">'
+            + '<div class="chat-item-avatar">' + avatar + '</div>'
+            + '<div class="chat-item-info"><div class="chat-item-name">' + escapeHtml(displayName) + '</div>'
+            + '<div class="chat-item-preview">点击开始聊天</div></div>'
+            + '<div class="chat-item-delete" onclick="event.stopPropagation(); deleteRoom(\'' + room.roomId + '\')">×</div></div>';
     }).join('');
+}
+
+// 删除聊天室
+async function deleteRoom(roomId) {
+    if (!confirm('确定要删除这个聊天吗？聊天记录将保留，但会从列表中移除。')) {
+        return;
+    }
+    
+    try {
+        await del('/chat/rooms/' + roomId);
+        showToast('聊天已删除', 'success');
+        
+        // 如果删除的是当前打开的聊天，清空右侧
+        if (chatState.currentRoom === roomId) {
+            chatState.currentRoom = null;
+            chatState.currentUser = null;
+            document.getElementById('chat-main').innerHTML = '';
+        }
+        
+        // 刷新列表
+        loadChatRooms();
+    } catch (error) {
+        console.error('删除聊天失败:', error);
+        showToast('删除失败: ' + (error.message || '请重试'), 'error');
+    }
 }
 
 function openChatRoom(roomId, user) {

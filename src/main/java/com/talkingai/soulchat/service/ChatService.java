@@ -1,7 +1,9 @@
 package com.talkingai.soulchat.service;
 
+import com.talkingai.soulchat.dto.ChatRoomDTO;
 import com.talkingai.soulchat.entity.ChatMessage;
 import com.talkingai.soulchat.entity.ChatRoom;
+import com.talkingai.soulchat.entity.User;
 import com.talkingai.soulchat.repository.ChatMessageRepository;
 import com.talkingai.soulchat.repository.ChatRoomRepository;
 import com.talkingai.soulchat.repository.UserRepository;
@@ -156,6 +158,65 @@ public class ChatService {
 
     public Flux<ChatRoom> getUserRooms(String userId) {
         return chatRoomRepository.findByParticipantsContainingAndActiveTrue(userId);
+    }
+
+    /**
+     * 获取用户的聊天室列表，包含对方用户信息和最后一条消息
+     */
+    public Flux<ChatRoomDTO> getUserRoomsWithDetails(String userId) {
+        return chatRoomRepository.findByParticipantsContainingAndActiveTrue(userId)
+                .flatMap(room -> {
+                    // 找到对方用户ID
+                    String partnerId = room.getParticipants().stream()
+                            .filter(id -> !id.equals(userId))
+                            .findFirst()
+                            .orElse(null);
+
+                    if (partnerId == null) {
+                        return Mono.just(convertToDTO(room, null, null));
+                    }
+
+                    // 获取对方用户信息
+                    return userRepository.findById(partnerId)
+                            .map(partner -> convertToDTO(room, partnerId, partner))
+                            .defaultIfEmpty(convertToDTO(room, partnerId, null));
+                });
+    }
+
+    private ChatRoomDTO convertToDTO(ChatRoom room, String partnerId, User partner) {
+        return ChatRoomDTO.builder()
+                .roomId(room.getRoomId())
+                .type(room.getType().name())
+                .name(room.getName())
+                .participants(room.getParticipants())
+                .active(room.getActive() != null ? room.getActive() : true)
+                .partnerId(partnerId)
+                .partnerNickname(partner != null ? partner.getNickname() : "未知用户")
+                .partnerAvatar(partner != null ? partner.getAvatar() : null)
+                .build();
+    }
+
+    /**
+     * 删除聊天室（软删除，标记为inactive）
+     */
+    public Mono<Void> deleteRoom(String userId, String roomId) {
+        return chatRoomRepository.findByRoomId(roomId)
+                .flatMap(room -> {
+                    // 验证用户是参与者
+                    if (!room.getParticipants().contains(userId)) {
+                        return Mono.error(new RuntimeException("无权删除此聊天室"));
+                    }
+                    
+                    // 从参与者列表中移除
+                    room.getParticipants().remove(userId);
+                    
+                    // 如果没有参与者了，标记为inactive
+                    if (room.getParticipants().isEmpty()) {
+                        room.setActive(false);
+                    }
+                    
+                    return chatRoomRepository.save(room).then();
+                });
     }
 
     private String generatePrivateRoomId(String userId1, String userId2) {

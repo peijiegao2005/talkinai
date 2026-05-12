@@ -1,8 +1,8 @@
 package com.talkingai.soulchat.controller;
 
 import com.talkingai.soulchat.dto.ApiResponse;
+import com.talkingai.soulchat.dto.ChatRoomDTO;
 import com.talkingai.soulchat.entity.ChatMessage;
-import com.talkingai.soulchat.entity.ChatRoom;
 import com.talkingai.soulchat.service.ChatService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,13 +51,24 @@ public class ChatController {
     }
 
     @GetMapping("/rooms")
-    public Mono<ApiResponse<List<ChatRoom>>> getMyRooms(Authentication authentication) {
+    public Mono<ApiResponse<List<ChatRoomDTO>>> getMyRooms(Authentication authentication) {
         String userId = authentication.getPrincipal().toString();
         log.info("获取用户聊天室列表: userId={}", userId);
 
-        return chatService.getUserRooms(userId)
+        return chatService.getUserRoomsWithDetails(userId)
                 .collectList()
                 .map(ApiResponse::success);
+    }
+
+    @DeleteMapping("/rooms/{roomId}")
+    public Mono<ApiResponse<Void>> deleteRoom(
+            Authentication authentication,
+            @PathVariable String roomId) {
+        String userId = authentication.getPrincipal().toString();
+        log.info("删除聊天室: userId={}, roomId={}", userId, roomId);
+
+        return chatService.deleteRoom(userId, roomId)
+                .thenReturn(ApiResponse.success(null));
     }
 
     @GetMapping("/unread-count")

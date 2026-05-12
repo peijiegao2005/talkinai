@@ -31,40 +31,79 @@ function showMainApp() {
 
     // 默认跳转到评估页面
     const hash = window.location.hash.slice(1) || 'assessment';
-    navigateTo(hash);
+    navigateTo(hash, false);
 }
 
 // 页面导航
-function navigateTo(page) {
+// @param page 目标页面
+// @param updateHash 是否更新URL hash（点击导航时true，初始化时false）
+function navigateTo(page, updateHash = true) {
     if (!routes[page]) {
         page = 'assessment';
     }
 
+    // 如果已经在当前页面，不重复渲染
+    if (page === currentPage) {
+        return;
+    }
+
     // 更新导航状态
+    updateNavActiveState(page);
+
+    // 标记当前页面
+    currentPage = page;
+
+    // 更新URL（仅在用户点击时更新，避免触发hashchange）
+    if (updateHash) {
+        window.location.hash = page;
+    }
+
+    // 渲染页面
+    routes[page]();
+}
+
+// 更新导航栏激活状态
+function updateNavActiveState(page) {
     document.querySelectorAll('.nav-link').forEach(link => {
         link.classList.remove('active');
         if (link.getAttribute('href') === '#' + page) {
             link.classList.add('active');
         }
     });
-
-    // 标记当前页面（必须在改hash之前，防止hashchange重复渲染）
-    currentPage = page;
-
-    // 更新URL
-    window.location.hash = page;
-
-    // 渲染页面
-    routes[page]();
 }
 
-// 监听hash变化（仅响应用户手动操作，如浏览器前进后退）
-window.addEventListener('hashchange', () => {
+// 监听hash变化（仅响应浏览器前进后退、手动修改URL等外部操作）
+window.addEventListener('hashchange', (event) => {
     const hash = window.location.hash.slice(1);
-    if (hash && routes[hash] && hash !== currentPage) {
-        currentPage = hash;
-        routes[hash]();
+
+    // 如果hash为空或无效，忽略
+    if (!hash || !routes[hash]) {
+        return;
     }
+
+    // 如果hash变化是由navigateTo触发的（currentPage已更新），忽略
+    if (hash === currentPage) {
+        return;
+    }
+
+    // 外部触发的hash变化（如浏览器前进后退）
+    currentPage = hash;
+    updateNavActiveState(hash);
+    routes[hash]();
+});
+
+// 为导航链接添加点击事件（阻止默认行为，使用navigateTo）
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const href = link.getAttribute('href');
+            if (href && href.startsWith('#')) {
+                const page = href.slice(1);
+                navigateTo(page, true);
+            }
+        });
+    });
 });
 
 // Toast提示

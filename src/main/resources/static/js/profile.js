@@ -31,71 +31,73 @@ function renderProfileView(container) {
     const userInfo = getUserInfo();
 
     container.innerHTML = `
-        <div class="page" style="max-width: 800px;">
-            <div class="profile-header">
-                <div class="profile-avatar">${userInfo?.nickname?.[0] || '👤'}</div>
-                <div class="profile-info">
-                    <h2>${userInfo?.nickname || '未设置昵称'}</h2>
-                    <p>@${userInfo?.username || ''}</p>
+        <div class="profile-page">
+            <div class="profile-container">
+                <div class="profile-header">
+                    <div class="profile-avatar">${userInfo?.nickname?.[0] || '👤'}</div>
+                    <div class="profile-info">
+                        <h2>${userInfo?.nickname || '未设置昵称'}</h2>
+                        <p>@${userInfo?.username || ''}</p>
+                    </div>
                 </div>
-            </div>
 
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-icon">📝</div>
-                    <div class="card-title">个人简介</div>
+                <div class="profile-section">
+                    <div class="profile-section-title">
+                        <span style="font-size: 20px;">📝</span>
+                        <span>个人简介</span>
+                    </div>
+                    <p style="color: #666; line-height: 1.8; font-size: 15px;">
+                        ${profile?.bio || '这个人很懒，什么都没写~'}
+                    </p>
                 </div>
-                <p style="color: var(--text-secondary); line-height: 1.8;">
-                    ${profile?.bio || '这个人很懒，什么都没写~'}
-                </p>
-            </div>
 
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-icon">🏷️</div>
-                    <div class="card-title">兴趣爱好</div>
+                <div class="profile-section">
+                    <div class="profile-section-title">
+                        <span style="font-size: 20px;">🏷️</span>
+                        <span>兴趣爱好</span>
+                    </div>
+                    <div class="interests-tags">
+                        ${(profile?.interests || []).map(interest => `
+                            <span class="interest-tag">${interest}</span>
+                        `).join('')}
+                        <span class="interest-tag add" onclick="showAddInterest()">+ 添加</span>
+                    </div>
                 </div>
-                <div class="interests-tags">
-                    ${(profile?.interests || []).map(interest => `
-                        <span class="interest-tag">${interest}</span>
-                    `).join('')}
-                    <span class="interest-tag add" onclick="showAddInterest()">+ 添加</span>
-                </div>
-            </div>
 
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-icon">📋</div>
-                    <div class="card-title">基本信息</div>
+                <div class="profile-section">
+                    <div class="profile-section-title">
+                        <span style="font-size: 20px;">📋</span>
+                        <span>基本信息</span>
+                    </div>
+                    <div class="profile-info-grid">
+                        <div class="profile-info-item">
+                            <span class="profile-info-label">性别</span>
+                            <span class="profile-info-value">${profile?.gender || '未设置'}</span>
+                        </div>
+                        <div class="profile-info-item">
+                            <span class="profile-info-label">年龄</span>
+                            <span class="profile-info-value">${profile?.age || '未设置'}</span>
+                        </div>
+                        <div class="profile-info-item">
+                            <span class="profile-info-label">地区</span>
+                            <span class="profile-info-value">${profile?.location || '未设置'}</span>
+                        </div>
+                        <div class="profile-info-item">
+                            <span class="profile-info-label">职业</span>
+                            <span class="profile-info-value">${profile?.occupation || '未设置'}</span>
+                        </div>
+                        <div class="profile-info-item" style="border-bottom: none;">
+                            <span class="profile-info-label">教育</span>
+                            <span class="profile-info-value">${profile?.education || '未设置'}</span>
+                        </div>
+                    </div>
                 </div>
-                <div style="display: grid; gap: 16px;">
-                    <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border);">
-                        <span style="color: var(--text-secondary);">性别</span>
-                        <span>${profile?.gender || '未设置'}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border);">
-                        <span style="color: var(--text-secondary);">年龄</span>
-                        <span>${profile?.age || '未设置'}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border);">
-                        <span style="color: var(--text-secondary);">地区</span>
-                        <span>${profile?.location || '未设置'}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border);">
-                        <span style="color: var(--text-secondary);">职业</span>
-                        <span>${profile?.occupation || '未设置'}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; padding: 12px 0;">
-                        <span style="color: var(--text-secondary);">教育</span>
-                        <span>${profile?.education || '未设置'}</span>
-                    </div>
-                </div>
-            </div>
 
-            <div style="text-align: center; margin-top: 32px;">
-                <button class="btn btn-primary btn-large" onclick="showEditProfile()">
-                    编辑资料
-                </button>
+                <div style="text-align: center; margin-top: 32px; padding-bottom: 32px;">
+                    <button class="btn-edit-profile" onclick="showEditProfile()">
+                        编辑资料
+                    </button>
+                </div>
             </div>
         </div>
     `;
