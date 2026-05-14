@@ -1,4 +1,4 @@
-// AI人格评估 - DeepSeek风格问答模式
+// AI人格评估 - 彩铅蜡笔涂鸦风格
 
 let assessmentState = {
     currentQuestion: 0,
@@ -35,32 +35,36 @@ async function checkAssessmentStatus() {
 // 渲染欢迎界面
 function renderWelcomeScreen(container) {
     container.innerHTML = `
-        <div class="page assessment-container">
-            <div class="ai-welcome">
-                <div class="ai-avatar">🤖</div>
-                <h1 class="ai-title">AI人格评估</h1>
-                <p class="ai-description">
-                    我是你的AI评估助手。通过10个精心设计的问题，
-                    我将基于大五人格理论为你生成专属的性格分析报告，
-                    帮助你更好地了解自己，找到真正契合的灵魂伴侣。
-                </p>
-                <div class="ai-features">
-                    <div class="ai-feature">
-                        <span class="ai-feature-icon">✓</span>
-                        <span>科学的人格理论</span>
-                    </div>
-                    <div class="ai-feature">
-                        <span class="ai-feature-icon">✓</span>
-                        <span>AI深度分析</span>
-                    </div>
-                    <div class="ai-feature">
-                        <span class="ai-feature-icon">✓</span>
-                        <span>精准匹配推荐</span>
+        <div class="assessment-page">
+            <div class="assessment-container">
+                <div class="assessment-welcome">
+                    <div class="assessment-welcome-card">
+                        <div class="assessment-avatar">🤖</div>
+                        <h1 class="assessment-title">AI人格评估</h1>
+                        <p class="assessment-desc">
+                            我是你的AI评估助手。通过10个精心设计的问题，
+                            我将基于大五人格理论为你生成专属的性格分析报告，
+                            帮助你更好地了解自己，找到真正契合的灵魂伴侣。
+                        </p>
+                        <div class="assessment-features">
+                            <div class="assessment-feature">
+                                <span class="assessment-feature-icon">✓</span>
+                                <span>科学的人格理论</span>
+                            </div>
+                            <div class="assessment-feature">
+                                <span class="assessment-feature-icon">✓</span>
+                                <span>AI深度分析</span>
+                            </div>
+                            <div class="assessment-feature">
+                                <span class="assessment-feature-icon">✓</span>
+                                <span>精准匹配推荐</span>
+                            </div>
+                        </div>
+                        <button class="assessment-btn assessment-btn-primary" onclick="startAssessment()">
+                            开始评估
+                        </button>
                     </div>
                 </div>
-                <button class="btn btn-primary btn-large" onclick="startAssessment()">
-                    开始评估
-                </button>
             </div>
         </div>
     `;
@@ -90,15 +94,15 @@ function renderChatInterface(question) {
     let messagesHtml = '';
     assessmentState.answers.forEach((answer, index) => {
         messagesHtml += `
-            <div class="message ai">
-                <div class="message-avatar ai">🤖</div>
-                <div class="message-content">
+            <div class="assessment-msg ai">
+                <div class="assessment-msg-avatar ai">🤖</div>
+                <div class="assessment-msg-content">
                     问题${index + 1}: ${answer.question}
                 </div>
             </div>
-            <div class="message user">
-                <div class="message-avatar user">👤</div>
-                <div class="message-content">
+            <div class="assessment-msg user">
+                <div class="assessment-msg-avatar user">👤</div>
+                <div class="assessment-msg-content">
                     ${answer.selectedText}
                 </div>
             </div>
@@ -107,15 +111,16 @@ function renderChatInterface(question) {
 
     // 添加当前问题
     messagesHtml += `
-        <div class="message ai" id="current-question">
-            <div class="message-avatar ai">🤖</div>
-            <div class="message-content">
+        <div class="assessment-msg ai" id="current-question">
+            <div class="assessment-msg-avatar ai">🤖</div>
+            <div class="assessment-msg-content">
                 <div style="margin-bottom: 12px;">问题${question.questionNumber}: ${question.content}</div>
-                <div style="font-size: 13px; opacity: 0.8; margin-bottom: 8px;">维度: ${getDimensionName(question.dimension)}</div>
-                <div class="options-container" id="options-container">
+                <div style="font-size: 13px; color: #888; margin-bottom: 8px;">维度: ${getDimensionName(question.dimension)}</div>
+                <div class="assessment-options" id="options-container">
                     ${question.options.map((opt, idx) => `
-                        <button class="option-btn" onclick="selectOption(${question.questionNumber}, ${idx + 1}, '${opt.text}')">
-                            ${opt.label}. ${opt.text}
+                        <button class="assessment-option-btn" onclick="selectOption(${question.questionNumber}, ${idx + 1}, '${opt.text}')">
+                            <span style="font-weight: 700; color: #87CEEB; min-width: 24px;">${opt.label}.</span>
+                            <span>${opt.text}</span>
                         </button>
                     `).join('')}
                 </div>
@@ -124,24 +129,24 @@ function renderChatInterface(question) {
     `;
 
     container.innerHTML = `
-        <div class="page" style="max-width: 800px; padding: 20px;">
-            <div class="chat-interface">
-                <div class="chat-messages" id="chat-messages">
-                    <div class="message ai">
-                        <div class="message-avatar ai">🤖</div>
-                        <div class="message-content">
+        <div class="assessment-chat-page">
+            <div class="assessment-chat-card">
+                <div class="assessment-messages" id="chat-messages">
+                    <div class="assessment-msg ai">
+                        <div class="assessment-msg-avatar ai">🤖</div>
+                        <div class="assessment-msg-content">
                             你好！我是你的AI评估助手。让我们开始了解真实的你吧。请根据你的第一直觉回答以下问题。
                         </div>
                     </div>
                     ${messagesHtml}
                 </div>
-                <div class="progress-container">
-                    <div class="progress-info">
+                <div class="assessment-progress">
+                    <div class="assessment-progress-info">
                         <span>进度</span>
                         <span>${assessmentState.currentQuestion} / ${assessmentState.totalQuestions}</span>
                     </div>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${(assessmentState.currentQuestion / assessmentState.totalQuestions) * 100}%"></div>
+                    <div class="assessment-progress-bar">
+                        <div class="assessment-progress-fill" style="width: ${(assessmentState.currentQuestion / assessmentState.totalQuestions) * 100}%"></div>
                     </div>
                 </div>
             </div>
@@ -172,7 +177,7 @@ function getDimensionName(dimension) {
 // 选择选项
 async function selectOption(questionNumber, score, text) {
     // 禁用所有选项按钮
-    const buttons = document.querySelectorAll('.option-btn');
+    const buttons = document.querySelectorAll('.assessment-option-btn');
     buttons.forEach(btn => btn.disabled = true);
 
     // 记录答案
@@ -208,12 +213,12 @@ async function completeAssessment() {
     const container = document.getElementById('main-container');
 
     container.innerHTML = `
-        <div class="page" style="max-width: 800px;">
-            <div class="chat-interface">
-                <div class="chat-messages" style="text-align: center; padding: 60px 24px;">
-                    <div class="loading" style="width: 48px; height: 48px; margin: 0 auto 24px;"></div>
-                    <h2 style="margin-bottom: 12px;">AI正在分析你的人格特质...</h2>
-                    <p style="color: var(--text-secondary);">基于大五人格理论生成专属报告</p>
+        <div class="assessment-chat-page">
+            <div class="assessment-chat-card">
+                <div class="assessment-messages" style="text-align: center; padding: 60px 24px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <div class="loading" style="width: 48px; height: 48px; margin-bottom: 24px; border-color: #87CEEB; border-top-color: #DDA0DD;"></div>
+                    <h2 style="margin-bottom: 12px; color: #333;">AI正在分析你的人格特质...</h2>
+                    <p style="color: #666;">基于大五人格理论生成专属报告</p>
                 </div>
             </div>
         </div>
@@ -246,68 +251,70 @@ function renderReportPage(reportData) {
     ];
 
     container.innerHTML = `
-        <div class="page report-container">
-            <div class="report-header">
-                <div class="report-badge">
-                    <span>✓</span>
-                    <span>评估完成</span>
+        <div class="assessment-report-page">
+            <div class="assessment-container">
+                <div style="text-align: center; margin-bottom: 32px;">
+                    <div class="assessment-badge">
+                        <span>✓</span>
+                        <span>评估完成</span>
+                    </div>
+                    <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px; color: #333;">你的人格报告</h1>
+                    <p style="color: #666; font-size: 15px;">基于大五人格理论的专业分析</p>
                 </div>
-                <h1 class="page-title">你的人格报告</h1>
-                <p class="page-subtitle">基于大五人格理论的专业分析</p>
-            </div>
 
-            <div class="personality-card">
-                <div class="personality-type">${report.summary || '独特的人格类型'}</div>
-                <div class="personality-desc">${report.description || '暂无详细描述'}</div>
-            </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-icon">📊</div>
-                    <div class="card-title">五维人格分析</div>
+                <div class="assessment-personality-card">
+                    <div class="assessment-personality-type">${report.summary || '独特的人格类型'}</div>
+                    <div class="assessment-personality-desc">${report.description || '暂无详细描述'}</div>
                 </div>
-                <div class="dimensions-grid">
-                    ${dimensions.map(dim => {
-                        const score = report.dimensionScores?.[dim.key] || 3.0;
-                        const percentage = (score / 5) * 100;
-                        return `
-                            <div class="dimension-item">
-                                <div class="dimension-header">
-                                    <span class="dimension-name">${dim.name}</span>
-                                    <span class="dimension-score">${score.toFixed(1)}</span>
+
+                <div class="assessment-report-card">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <div style="font-size: 24px;">📊</div>
+                        <div style="font-size: 18px; font-weight: 700; color: #333;">五维人格分析</div>
+                    </div>
+                    <div class="dimensions-grid">
+                        ${dimensions.map(dim => {
+                            const score = report.dimensionScores?.[dim.key] || 3.0;
+                            const percentage = (score / 5) * 100;
+                            return `
+                                <div class="assessment-dimension-item">
+                                    <div class="assessment-dimension-header">
+                                        <span class="assessment-dimension-name">${dim.name}</span>
+                                        <span class="assessment-dimension-score">${score.toFixed(1)}</span>
+                                    </div>
+                                    <div class="assessment-dimension-desc">${dim.desc}</div>
+                                    <div class="assessment-dimension-bar">
+                                        <div class="assessment-dimension-fill" style="width: ${percentage}%"></div>
+                                    </div>
                                 </div>
-                                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">${dim.desc}</div>
-                                <div class="dimension-bar">
-                                    <div class="dimension-fill" style="width: ${percentage}%"></div>
-                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+
+                <div class="assessment-report-card">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+                        <div style="font-size: 24px;">🎯</div>
+                        <div style="font-size: 18px; font-weight: 700; color: #333;">人格向量</div>
+                    </div>
+                    <div style="display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; padding: 20px;">
+                        ${(report.personalityVector || [0, 0, 0, 0, 0]).map((v, i) => `
+                            <div style="text-align: center;">
+                                <div style="font-size: 24px; font-weight: 700; color: #87CEEB;">${v.toFixed(2)}</div>
+                                <div style="font-size: 12px; color: #888;">${dimensions[i].name}</div>
                             </div>
-                        `;
-                    }).join('')}
+                        `).join('')}
+                    </div>
                 </div>
-            </div>
 
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-icon">🎯</div>
-                    <div class="card-title">人格向量</div>
+                <div style="text-align: center; margin-top: 32px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
+                    <button class="assessment-btn assessment-btn-primary" onclick="navigateTo('match')">
+                        寻找灵魂匹配
+                    </button>
+                    <button class="assessment-btn assessment-btn-secondary" onclick="restartAssessment()">
+                        🔄 重新评估
+                    </button>
                 </div>
-                <div style="display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; padding: 20px;">
-                    ${(report.personalityVector || [0, 0, 0, 0, 0]).map((v, i) => `
-                        <div style="text-align: center;">
-                            <div style="font-size: 24px; font-weight: 700; color: var(--gradient-1);">${v.toFixed(2)}</div>
-                            <div style="font-size: 12px; color: var(--text-secondary);">${dimensions[i].name}</div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-
-            <div style="text-align: center; margin-top: 32px; display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
-                <button class="btn btn-primary btn-large" onclick="navigateTo('match')">
-                    寻找灵魂匹配
-                </button>
-                <button class="btn btn-secondary" onclick="restartAssessment()">
-                    🔄 重新评估
-                </button>
             </div>
         </div>
     `;

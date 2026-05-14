@@ -1641,6 +1641,377 @@ body {
 
 
 
+/* ==================== 人格评估页面 - 彩铅蜡笔涂鸦风格 ==================== */
+
+.assessment-page {
+    min-height: calc(100vh - 60px);
+    background: url('/images/assessment.jpg') center/cover no-repeat;
+    padding: 0;
+}
+
+.assessment-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 40px 24px;
+}
+
+/* 欢迎界面 */
+.assessment-welcome {
+    text-align: center;
+    padding: 60px 24px;
+}
+
+.assessment-welcome-card {
+    background: rgba(255, 255, 255, 0.92);
+    border: 2px dashed #87CEEB;
+    border-radius: 24px;
+    padding: 48px 40px;
+    box-shadow: 4px 4px 0px rgba(135, 206, 235, 0.3);
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.assessment-avatar {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #87CEEB, #DDA0DD);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    margin: 0 auto 24px;
+    border: 4px solid white;
+    box-shadow: 4px 4px 0px rgba(135, 206, 235, 0.4);
+}
+
+.assessment-title {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: #333;
+}
+
+.assessment-desc {
+    color: #666;
+    font-size: 15px;
+    max-width: 500px;
+    margin: 0 auto 32px;
+    line-height: 1.8;
+}
+
+.assessment-features {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+}
+
+.assessment-feature {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #555;
+    font-size: 14px;
+    background: rgba(135, 206, 235, 0.15);
+    padding: 8px 16px;
+    border-radius: 16px;
+    border: 1px dashed #87CEEB;
+}
+
+.assessment-feature-icon {
+    color: #4CAF50;
+    font-weight: 700;
+}
+
+/* 聊天式问答界面 */
+.assessment-chat-page {
+    min-height: calc(100vh - 60px);
+    background: url('/images/assessment.jpg') center/cover no-repeat;
+    padding: 20px;
+}
+
+.assessment-chat-card {
+    background: rgba(255, 255, 255, 0.92);
+    border: 2px dashed #87CEEB;
+    border-radius: 24px;
+    overflow: hidden;
+    max-width: 800px;
+    margin: 0 auto;
+    box-shadow: 4px 4px 0px rgba(135, 206, 235, 0.3);
+}
+
+.assessment-messages {
+    height: 500px;
+    overflow-y: auto;
+    padding: 24px;
+}
+
+.assessment-msg {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    animation: fadeIn 0.3s ease;
+}
+
+.assessment-msg.ai {
+    align-items: flex-start;
+}
+
+.assessment-msg.user {
+    align-items: flex-start;
+    flex-direction: row-reverse;
+}
+
+.assessment-msg-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 18px;
+    border: 3px solid white;
+    box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.1);
+}
+
+.assessment-msg-avatar.ai {
+    background: linear-gradient(135deg, #87CEEB, #DDA0DD);
+}
+
+.assessment-msg-avatar.user {
+    background: linear-gradient(135deg, #98FB98, #87CEEB);
+}
+
+.assessment-msg-content {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 14px 18px;
+    border-radius: 16px;
+    max-width: 75%;
+    line-height: 1.7;
+    color: #333;
+    border: 2px solid rgba(135, 206, 235, 0.4);
+    box-shadow: 2px 2px 0px rgba(135, 206, 235, 0.2);
+}
+
+.assessment-msg.user .assessment-msg-content {
+    background: linear-gradient(135deg, rgba(152, 251, 152, 0.9), rgba(135, 206, 235, 0.9));
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 2px 2px 0px rgba(135, 206, 235, 0.3);
+    color: #333;
+}
+
+/* 选项按钮 */
+.assessment-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.assessment-option-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 18px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px dashed #87CEEB;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: left;
+    font-size: 14px;
+    color: #333;
+    box-shadow: 2px 2px 0px rgba(135, 206, 235, 0.2);
+}
+
+.assessment-option-btn:hover {
+    background: rgba(135, 206, 235, 0.2);
+    border-color: #5DADE2;
+    transform: translateX(4px);
+    box-shadow: 3px 3px 0px rgba(135, 206, 235, 0.3);
+}
+
+.assessment-option-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* 进度条 */
+.assessment-progress {
+    padding: 20px 24px;
+    border-top: 2px dashed #DDA0DD;
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.assessment-progress-info {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-size: 14px;
+    color: #666;
+    font-weight: 500;
+}
+
+.assessment-progress-bar {
+    height: 8px;
+    background: rgba(135, 206, 235, 0.2);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px dashed #87CEEB;
+}
+
+.assessment-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #87CEEB, #DDA0DD);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+/* 报告页面 */
+.assessment-report-page {
+    min-height: calc(100vh - 60px);
+    background: url('/images/assessment.jpg') center/cover no-repeat;
+    padding: 40px 24px;
+}
+
+.assessment-report-card {
+    background: rgba(255, 255, 255, 0.92);
+    border: 2px dashed #FFB6C1;
+    border-radius: 24px;
+    padding: 32px;
+    margin-bottom: 24px;
+    box-shadow: 4px 4px 0px rgba(255, 182, 193, 0.3);
+}
+
+.assessment-personality-card {
+    background: linear-gradient(135deg, #87CEEB, #DDA0DD);
+    border-radius: 24px;
+    padding: 32px;
+    margin-bottom: 24px;
+    border: 3px solid white;
+    box-shadow: 4px 4px 0px rgba(135, 206, 235, 0.4);
+    color: white;
+}
+
+.assessment-personality-type {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.assessment-personality-desc {
+    opacity: 0.95;
+    line-height: 1.7;
+    font-size: 15px;
+}
+
+.assessment-dimension-item {
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px dashed #87CEEB;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 2px 2px 0px rgba(135, 206, 235, 0.2);
+}
+
+.assessment-dimension-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.assessment-dimension-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 15px;
+}
+
+.assessment-dimension-score {
+    font-size: 20px;
+    font-weight: 700;
+    color: #87CEEB;
+}
+
+.assessment-dimension-desc {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 12px;
+}
+
+.assessment-dimension-bar {
+    height: 10px;
+    background: rgba(135, 206, 235, 0.2);
+    border-radius: 5px;
+    overflow: hidden;
+    border: 1px dashed #87CEEB;
+}
+
+.assessment-dimension-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #87CEEB, #DDA0DD);
+    border-radius: 5px;
+    transition: width 1s ease;
+}
+
+/* 报告徽章 */
+.assessment-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(76, 175, 80, 0.15);
+    color: #4CAF50;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    border: 1px dashed #4CAF50;
+}
+
+/* 按钮 */
+.assessment-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 36px;
+    border-radius: 9999px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 3px solid white;
+    font-size: 15px;
+    box-shadow: 3px 3px 0px rgba(0, 0, 0, 0.1);
+}
+
+.assessment-btn-primary {
+    background: linear-gradient(135deg, #87CEEB, #DDA0DD);
+    color: white;
+}
+
+.assessment-btn-primary:hover {
+    transform: scale(1.05) rotate(-2deg);
+    box-shadow: 4px 4px 0px rgba(135, 206, 235, 0.4);
+}
+
+.assessment-btn-secondary {
+    background: rgba(255, 255, 255, 0.9);
+    color: #333;
+    border: 2px dashed #DDA0DD;
+    padding: 12px 28px;
+}
+
+.assessment-btn-secondary:hover {
+    background: rgba(221, 160, 221, 0.2);
+    border-color: #DDA0DD;
+    transform: scale(1.05);
+}
+
 /* 响应式 */
 @media (max-width: 768px) {
     .mood-container {
@@ -1661,5 +2032,23 @@ body {
 
     .mood-chat-input-area {
         padding: 12px 16px;
+    }
+
+    .assessment-container {
+        padding: 20px 16px;
+    }
+
+    .assessment-welcome-card {
+        padding: 32px 24px;
+    }
+
+    .assessment-messages {
+        height: 400px;
+        padding: 16px;
+    }
+
+    .assessment-feature {
+        font-size: 12px;
+        padding: 6px 12px;
     }
 }
