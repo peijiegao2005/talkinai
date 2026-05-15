@@ -79,6 +79,14 @@ public class MoodController {
                 .map(ApiResponse::success);
     }
 
+    @PostMapping("/ai-assessment/complete")
+    public Mono<ApiResponse<AiMoodAssessmentService.DialogResponse>> completeAiAssessment(
+            Authentication auth,
+            @RequestBody MoodCompleteRequest request) {
+        return aiMoodAssessmentService.completeAiAssessment(request.getSessionId())
+                .map(ApiResponse::success);
+    }
+
     // ==================== 聊天室 ====================
 
     @GetMapping("/rooms")

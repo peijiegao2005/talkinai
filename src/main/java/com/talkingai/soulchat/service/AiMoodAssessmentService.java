@@ -24,6 +24,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * AI对话式心情评测服务
@@ -313,6 +314,88 @@ public class AiMoodAssessmentService {
                     log.info("用户 {} 完成AI心情评测，主心情: {}，推荐房间: {}",
                             session.getUserId(), finalMood, finalRoomId);
                 });
+    }
+
+    /**
+     * 完成AI评测并返回结果（供用户主动点击完成按钮时使用）
+     */
+    public Mono<DialogResponse> completeAiAssessment(String sessionId) {
+        AiMoodSession session = activeSessions.get(sessionId);
+        if (session == null) {
+            return Mono.error(new RuntimeException("会话已过期"));
+        }
+
+        // 从对话历史中解析评估结果
+        String lastAiMessage = session.getMessages().stream()
+                .filter(m -> "assistant".equals(m.get("role")))
+                .reduce((first, second) -> second)
+                .map(m -> m.get("content"))
+                .orElse("");
+
+        // 如果已经有评估标记，直接处理
+        if (lastAiMessage.contains("[ASSESSMENT:")) {
+            return processFinalAssessment(session, lastAiMessage);
+        }
+
+        // 没有评估标记，基于已有对话生成默认结果
+        String primaryMood = analyzeMoodFromMessages(session.getMessages());
+        String recommendedRoomId = mapMoodToRoom(primaryMood);
+        int intensity = 5;
+
+        MoodAssessment assessment = MoodAssessment.builder()
+                .userId(session.getUserId())
+                .sessionId(session.getSessionId())
+                .primaryMood(primaryMood)
+                .moodIntensity(intensity)
+                .recommendedRoomId(recommendedRoomId)
+                .completed(true)
+                .build();
+
+        return assessmentRepository.save(assessment)
+                .flatMap(saved -> roomRepository.findByRoomId(recommendedRoomId))
+                .map(room -> DialogResponse.builder()
+                        .completed(true)
+                        .currentRound(session.getCurrentRound())
+                        .totalRounds(MAX_AI_ROUNDS)
+                        .aiMessage("基于我们的对话，我为你生成了心情评估结果。")
+                        .assessmentResult(AssessmentResultDTO.builder()
+                                .primaryMood(primaryMood)
+                                .intensity(intensity)
+                                .recommendedRoomId(room.getRoomId())
+                                .recommendedRoomName(room.getName())
+                                .recommendedRoomIcon(room.getIcon())
+                                .description(room.getDescription())
+                                .atmosphere(room.getAtmosphere())
+                                .build())
+                        .build())
+                .doOnSuccess(result -> {
+                    activeSessions.remove(session.getSessionId());
+                    log.info("用户 {} 手动完成AI心情评测，主心情: {}，推荐房间: {}",
+                            session.getUserId(), primaryMood, recommendedRoomId);
+                });
+    }
+
+    /**
+     * 从对话消息中分析心情
+     */
+    private String analyzeMoodFromMessages(List<Map<String, String>> messages) {
+        String allContent = messages.stream()
+                .map(m -> m.getOrDefault("content", ""))
+                .collect(Collectors.joining(" "))
+                .toLowerCase();
+
+        if (allContent.contains("开心") || allContent.contains("高兴") || allContent.contains("兴奋")) {
+            return "happy";
+        } else if (allContent.contains("焦虑") || allContent.contains("紧张") || allContent.contains("不安")) {
+            return "anxious";
+        } else if (allContent.contains("平静") || allContent.contains("放松") || allContent.contains("专注")) {
+            return "peaceful";
+        } else if (allContent.contains("孤独") || allContent.contains("寂寞")) {
+            return "lonely";
+        } else if (allContent.contains("好奇") || allContent.contains("兴趣")) {
+            return "curious";
+        }
+        return "neutral";
     }
 
     /**
