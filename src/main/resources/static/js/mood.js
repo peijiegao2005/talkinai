@@ -77,24 +77,25 @@ async function startMoodAssessment() {
 }
 
 // 渲染AI对话界面
-function renderAiDialog(sessionId, aiMessage, currentRound, totalRounds) {
+function renderAiDialog(sessionId, aiMessage, currentRound, totalRounds, isComplete = false) {
     const container = document.getElementById('mood-assessment-container');
-    const progress = (currentRound / totalRounds) * 100;
 
-    // 构建消息历史
+    // 初始化消息历史（只在第一次调用时）
     if (!moodState.aiMessages) {
         moodState.aiMessages = [];
     }
-    if (moodState.aiMessages.length === 0) {
+
+    // 如果是新消息，添加到历史（避免重复添加）
+    if (aiMessage && !moodState.aiMessages.find(m => m.role === 'ai' && m.content === aiMessage)) {
         moodState.aiMessages.push({
             role: 'ai',
-            content: '你好！我是你的AI心情助手。让我们聊聊，了解你此刻的心情状态。'
+            content: aiMessage
         });
     }
-    moodState.aiMessages.push({
-        role: 'ai',
-        content: aiMessage
-    });
+
+    // 计算进度
+    const aiMsgCount = moodState.aiMessages.filter(m => m.role === 'ai').length;
+    const progress = Math.min((aiMsgCount / 5) * 100, 100);
 
     const messagesHtml = moodState.aiMessages.map(msg => {
         if (msg.role === 'ai') {
@@ -114,11 +115,49 @@ function renderAiDialog(sessionId, aiMessage, currentRound, totalRounds) {
         }
     }).join('');
 
+    // 根据对话轮数显示不同的提示
+    let progressText = `对话进行中`;
+    if (aiMsgCount >= 5) {
+        progressText = `对话已完成，可以继续聊或查看结果`;
+    }
+
+    // 构建输入区域
+    let inputAreaHtml = '';
+    if (isComplete) {
+        // 评测已完成，显示完成按钮
+        inputAreaHtml = `
+            <div style="display: flex; gap: 12px; flex-direction: column;">
+                <div style="text-align: center; color: #666; font-size: 14px; margin-bottom: 8px;">
+                    💡 对话已完成！你可以继续和AI聊，或者查看评测结果
+                </div>
+                <div style="display: flex; gap: 12px;">
+                    <input type="text" id="ai-message-input" placeholder="还想继续聊聊吗..." style="flex: 1; padding: 14px 18px; border: 2px dashed #FFB6C1; border-radius: 9999px; font-size: 15px; background: rgba(255, 255, 255, 0.9); outline: none; transition: all 0.3s;" onkeypress="if(event.key==='Enter') submitAiMessage('${sessionId}')">
+                    <button class="mood-btn mood-btn-primary" style="padding: 14px 28px;" onclick="submitAiMessage('${sessionId}')">
+                        发送
+                    </button>
+                </div>
+                <button class="mood-btn mood-btn-secondary" style="width: 100%;" onclick="completeAiAssessment('${sessionId}')">
+                    查看评测结果 ✨
+                </button>
+            </div>
+        `;
+    } else {
+        // 评测进行中
+        inputAreaHtml = `
+            <div style="display: flex; gap: 12px;">
+                <input type="text" id="ai-message-input" placeholder="输入你的回复..." style="flex: 1; padding: 14px 18px; border: 2px dashed #FFB6C1; border-radius: 9999px; font-size: 15px; background: rgba(255, 255, 255, 0.9); outline: none; transition: all 0.3s;" onkeypress="if(event.key==='Enter') submitAiMessage('${sessionId}')">
+                <button class="mood-btn mood-btn-primary" style="padding: 14px 28px;" onclick="submitAiMessage('${sessionId}')">
+                    发送
+                </button>
+            </div>
+        `;
+    }
+
     container.innerHTML = `
         <div class="mood-card" style="padding: 24px;">
             <div style="margin-bottom: 20px;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #666;">
-                    <span style="font-weight: 600;">对话 ${currentRound}/${totalRounds}</span>
+                    <span style="font-weight: 600;">${progressText}</span>
                     <span style="font-weight: 600; color: #FF6B9D;">${Math.round(progress)}%</span>
                 </div>
                 <div style="height: 8px; background: rgba(255, 182, 193, 0.2); border-radius: 4px; overflow: hidden; border: 1px dashed #FFB6C1;">
@@ -130,12 +169,7 @@ function renderAiDialog(sessionId, aiMessage, currentRound, totalRounds) {
                 ${messagesHtml}
             </div>
 
-            <div style="display: flex; gap: 12px;">
-                <input type="text" id="ai-message-input" placeholder="输入你的回复..." style="flex: 1; padding: 14px 18px; border: 2px dashed #FFB6C1; border-radius: 9999px; font-size: 15px; background: rgba(255, 255, 255, 0.9); outline: none; transition: all 0.3s;" onkeypress="if(event.key==='Enter') submitAiMessage('${sessionId}')">
-                <button class="mood-btn mood-btn-primary" style="padding: 14px 28px;" onclick="submitAiMessage('${sessionId}')">
-                    发送
-                </button>
-            </div>
+            ${inputAreaHtml}
         </div>
     `;
 
@@ -149,6 +183,22 @@ function renderAiDialog(sessionId, aiMessage, currentRound, totalRounds) {
         const input = document.getElementById('ai-message-input');
         if (input) input.focus();
     }, 100);
+}
+
+// 完成AI评测并查看结果
+async function completeAiAssessment(sessionId) {
+    try {
+        // 调用完成评测的API
+        const data = await post('/mood/ai-assessment/complete', { sessionId: sessionId });
+        const result = data.data;
+
+        moodState.assessmentCompleted = true;
+        moodState.currentMood = result.assessmentResult?.primaryMood;
+        moodState.aiMessages = []; // 清空消息历史
+        renderMoodResult(result.assessmentResult);
+    } catch (error) {
+        showToast('获取评测结果失败: ' + error.message, 'error');
+    }
 }
 
 // 提交AI对话消息
@@ -172,11 +222,11 @@ async function submitAiMessage(sessionId) {
         content: message
     });
 
-    // 重新渲染以显示用户消息
-    const currentRound = moodState.aiMessages.filter(m => m.role === 'ai').length;
-    const totalRounds = 5;
+    // 重新渲染以显示用户消息（不添加新AI消息）
+    const aiMsgCount = moodState.aiMessages.filter(m => m.role === 'ai').length;
     const lastAiMessage = moodState.aiMessages.filter(m => m.role === 'ai').pop()?.content || '';
-    renderAiDialog(sessionId, lastAiMessage, currentRound, totalRounds);
+    const isComplete = aiMsgCount >= 5;
+    renderAiDialog(sessionId, null, aiMsgCount, 5, isComplete);
 
     try {
         const data = await post('/mood/ai-assessment/dialog', {
@@ -186,11 +236,14 @@ async function submitAiMessage(sessionId) {
         const result = data.data;
 
         if (result.completed) {
-            // 评测完成
-            moodState.assessmentCompleted = true;
-            moodState.currentMood = result.assessmentResult?.primaryMood;
-            moodState.aiMessages = []; // 清空消息历史
-            renderMoodResult(result.assessmentResult);
+            // 评测数据已收集完成，但允许用户继续对话
+            const newAiMsgCount = moodState.aiMessages.filter(m => m.role === 'ai').length + 1;
+            moodState.aiMessages.push({
+                role: 'ai',
+                content: result.aiMessage
+            });
+            // 显示完成状态，但允许继续聊
+            renderAiDialog(sessionId, null, newAiMsgCount, 5, true);
         } else if (result.fallbackMode) {
             // 降级到选择题模式
             moodState.aiMessages = [];
@@ -200,7 +253,7 @@ async function submitAiMessage(sessionId) {
             renderMoodQuestion(result.sessionId, result.question, result.currentRound, result.totalRounds);
         } else {
             // 继续AI对话
-            renderAiDialog(sessionId, result.aiMessage, result.currentRound, result.totalRounds);
+            renderAiDialog(sessionId, result.aiMessage, result.currentRound, result.totalRounds, false);
         }
     } catch (error) {
         showToast('发送消息失败: ' + error.message, 'error');
