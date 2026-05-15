@@ -166,7 +166,12 @@ public class AiMoodAssessmentService {
                             .build());
                 })
                 .onErrorResume(e -> {
-                    log.warn("AI对话启动失败，降级到选择题模式: {}", e.getMessage());
+                    log.error("AI对话启动失败，降级到选择题模式");
+                    log.error("错误类型: {}", e.getClass().getName());
+                    log.error("错误信息: {}", e.getMessage());
+                    if (e.getCause() != null) {
+                        log.error("根本原因: {}", e.getCause().getMessage());
+                    }
                     activeSessions.remove(sessionId);
                     return startFallbackAssessment(userId);
                 });
