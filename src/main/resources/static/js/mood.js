@@ -326,10 +326,14 @@ async function submitMoodAnswer(sessionId, questionNumber, selectedOption) {
         if (result.completed) {
             // 评测完成，显示结果
             moodState.assessmentCompleted = true;
-            moodState.currentMood = result.assessmentResult?.primaryMood;
+            moodState.currentMood = result.assessmentResult?.primaryMood || result.primaryMood;
             renderMoodResult(result.assessmentResult || result);
         } else {
-            renderMoodQuestion(sessionId, result.question, result.currentRound, result.totalRounds);
+            // 统一处理两种返回格式
+            const question = result.question || result.nextQuestion;
+            const current = result.currentRound || result.currentQuestion;
+            const total = result.totalRounds || result.totalQuestions;
+            renderMoodQuestion(sessionId, question, current, total);
         }
     } catch (error) {
         showToast('提交答案失败: ' + error.message, 'error');
