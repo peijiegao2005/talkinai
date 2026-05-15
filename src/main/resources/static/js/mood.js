@@ -336,7 +336,8 @@ async function submitMoodAnswer(sessionId, questionNumber, selectedOption) {
     try {
         let data;
         // 根据模式选择正确的 API 端点
-        if (moodState.assessmentMode === 'AI_DIALOG') {
+        // 注意：即使是降级模式，session 仍然在 AiMoodAssessmentService 中
+        if (moodState.assessmentMode === 'AI_DIALOG' || moodState.aiMessages.length > 0) {
             // 从 AI 模式降级后的选择题，使用 fallback-answer 端点
             data = await post('/mood/ai-assessment/fallback-answer', {
                 sessionId: sessionId,
@@ -344,7 +345,7 @@ async function submitMoodAnswer(sessionId, questionNumber, selectedOption) {
                 selectedOption: selectedOption
             });
         } else {
-            // 原生选择题模式
+            // 原生选择题模式（直接开始的，没有经过 AI）
             data = await post('/mood/assessment/answer', {
                 sessionId: sessionId,
                 questionNumber: questionNumber,
@@ -357,6 +358,7 @@ async function submitMoodAnswer(sessionId, questionNumber, selectedOption) {
             // 评测完成，显示结果
             moodState.assessmentCompleted = true;
             moodState.currentMood = result.assessmentResult?.primaryMood || result.primaryMood;
+            moodState.aiMessages = []; // 清空消息历史
             renderMoodResult(result.assessmentResult || result);
         } else {
             // 继续下一题
