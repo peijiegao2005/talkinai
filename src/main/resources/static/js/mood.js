@@ -49,8 +49,7 @@ function renderMoodAssessment(container) {
 // 开始心情评测 - 优先使用AI对话模式
 async function startMoodAssessment() {
     try {
-        // 重置模式标记
-        moodState.assessmentMode = null;
+        // 重置状态
         moodState.aiMessages = [];
 
         // 优先调用AI评测接口
@@ -58,21 +57,21 @@ async function startMoodAssessment() {
         const result = data.data;
 
         if (result.assessmentType === 'CHOICE_QUESTIONS' || result.fallbackMode) {
-            // AI不可用，降级到选择题模式
-            moodState.assessmentMode = 'ai_fallback';
+            // AI不可用，使用原始选择题模式（重新创建session）
             if (result.fallbackMessage) {
                 showToast(result.fallbackMessage, 'info');
             }
-            renderMoodQuestion(result.sessionId, result.question, result.currentRound, result.totalRounds);
+            // 调用原始选择题API
+            const choiceData = await post('/mood/assessment/start', {});
+            const choiceResult = choiceData.data;
+            renderMoodQuestion(choiceResult.sessionId, choiceResult.question, choiceResult.currentQuestion, choiceResult.totalQuestions);
         } else {
             // AI对话模式
-            moodState.assessmentMode = 'ai_dialog';
             renderAiDialog(result.sessionId, result.aiMessage, result.currentRound, result.totalRounds);
         }
     } catch (error) {
         // AI接口调用失败，降级到原始选择题模式
         console.log('AI评测不可用，降级到选择题模式:', error);
-        moodState.assessmentMode = 'choice_only';
         try {
             const data = await post('/mood/assessment/start', {});
             const result = data.data;
@@ -120,11 +119,8 @@ function renderMoodQuestion(sessionId, question, current, total) {
 // 提交心情答案（选择题模式）
 async function submitMoodAnswer(sessionId, questionNumber, selectedOption) {
     try {
-        // 判断是否是AI降级模式
-        const isFallbackMode = moodState.assessmentMode === 'ai_fallback';
-        const apiUrl = isFallbackMode ? '/mood/ai-assessment/fallback-answer' : '/mood/assessment/answer';
-
-        const data = await post(apiUrl, {
+        // 统一使用原始选择题API，简化逻辑
+        const data = await post('/mood/assessment/answer', {
             sessionId: sessionId,
             questionNumber: questionNumber,
             selectedOption: selectedOption
@@ -132,13 +128,9 @@ async function submitMoodAnswer(sessionId, questionNumber, selectedOption) {
         const result = data.data;
 
         if (result.completed) {
-            if (isFallbackMode) {
-                await completeAiFallbackAssessment(sessionId);
-            } else {
-                await completeMoodAssessment(sessionId);
-            }
+            await completeMoodAssessment(sessionId);
         } else {
-            renderMoodQuestion(sessionId, result.nextQuestion || result.question, result.currentQuestion || result.currentRound, result.totalQuestions || result.totalRounds);
+            renderMoodQuestion(sessionId, result.nextQuestion, result.currentQuestion, result.totalQuestions);
         }
     } catch (error) {
         showToast('提交答案失败: ' + error.message, 'error');
@@ -155,23 +147,6 @@ async function completeMoodAssessment(sessionId) {
         moodState.currentMood = result.primaryMood;
 
         renderMoodResult(result);
-    } catch (error) {
-        showToast('完成评测失败: ' + error.message, 'error');
-    }
-}
-
-// 完成AI降级模式的选择题评测
-async function completeAiFallbackAssessment(sessionId) {
-    try {
-        // AI降级模式使用 ai-assessment/complete 接口
-        const data = await post('/mood/ai-assessment/complete', { sessionId: sessionId });
-        const result = data.data;
-
-        moodState.assessmentCompleted = true;
-        moodState.currentMood = result.assessmentResult?.primaryMood;
-        moodState.assessmentMode = null; // 清除模式标记
-
-        renderMoodResult(result.assessmentResult);
     } catch (error) {
         showToast('完成评测失败: ' + error.message, 'error');
     }
@@ -332,13 +307,18 @@ async function submitAiMessage(sessionId) {
             // 显示完成状态，但允许继续聊
             renderAiDialog(sessionId, null, newAiMsgCount, 5, true);
         } else if (result.fallbackMode) {
-            // 降级到选择题模式
-            moodState.assessmentMode = 'ai_fallback';
+            // 降级到选择题模式 - 重新创建原始选择题session
             moodState.aiMessages = [];
             if (result.fallbackMessage) {
                 showToast(result.fallbackMessage, 'info');
             }
-            renderMoodQuestion(result.sessionId, result.question, result.currentRound, result.totalRounds);
+            try {
+                const choiceData = await post('/mood/assessment/start', {});
+                const choiceResult = choiceData.data;
+                renderMoodQuestion(choiceResult.sessionId, choiceResult.question, choiceResult.currentQuestion, choiceResult.totalQuestions);
+            } catch (error) {
+                showToast('切换到选择题模式失败: ' + error.message, 'error');
+            }
         } else {
             // 继续AI对话
             renderAiDialog(sessionId, result.aiMessage, result.currentRound, result.totalRounds, false);
