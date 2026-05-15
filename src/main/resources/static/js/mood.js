@@ -30,11 +30,11 @@ function renderMoodAssessment(container) {
                 <div id="mood-assessment-container">
                     <div class="mood-card" style="text-align: center; padding: 40px 32px;">
                         <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 8px; color: #333;">此刻心情如何？</h1>
-                        <p style="color: #666; font-size: 15px; margin-bottom: 24px;">通过5道简单的问题，让我们了解你当前的情绪状态</p>
-                        <div style="font-size: 56px; margin-bottom: 20px;">✨</div>
-                        <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 12px; color: #333;">开始心情评测</h2>
+                        <p style="color: #666; font-size: 15px; margin-bottom: 24px;">和AI聊聊，让我们了解你当前的情绪状态</p>
+                        <div style="font-size: 56px; margin-bottom: 20px;">🤖</div>
+                        <h2 style="font-size: 22px; font-weight: 600; margin-bottom: 12px; color: #333;">AI心情评测</h2>
                         <p style="color: #666; margin-bottom: 32px; font-size: 15px; line-height: 1.6;">
-                            根据你当前的真实感受回答，我们会为你推荐最适合的聊天室
+                            通过和AI的自然对话，我们会为你推荐最适合的聊天室
                         </p>
                         <button class="mood-btn mood-btn-primary" style="padding: 16px 48px; font-size: 16px;" onclick="startMoodAssessment()">
                             开始评测
@@ -46,19 +46,170 @@ function renderMoodAssessment(container) {
     `;
 }
 
-// 开始心情评测
+// 开始心情评测 - 优先使用AI对话模式
 async function startMoodAssessment() {
     try {
-        const data = await post('/mood/assessment/start', {});
+        // 优先调用AI评测接口
+        const data = await post('/mood/ai-assessment/start', {});
         const result = data.data;
 
-        renderMoodQuestion(result.sessionId, result.question, result.currentQuestion, result.totalQuestions);
+        if (result.assessmentType === 'CHOICE_QUESTIONS' || result.fallbackMode) {
+            // AI不可用，降级到选择题模式
+            if (result.fallbackMessage) {
+                showToast(result.fallbackMessage, 'info');
+            }
+            renderMoodQuestion(result.sessionId, result.question, result.currentQuestion, result.totalQuestions);
+        } else {
+            // AI对话模式
+            renderAiDialog(result.sessionId, result.aiMessage, result.currentRound, result.totalRounds);
+        }
     } catch (error) {
-        showToast('开始评测失败: ' + error.message, 'error');
+        // AI接口调用失败，降级到选择题模式
+        console.log('AI评测不可用，降级到选择题模式:', error);
+        try {
+            const data = await post('/mood/assessment/start', {});
+            const result = data.data;
+            renderMoodQuestion(result.sessionId, result.question, result.currentQuestion, result.totalQuestions);
+        } catch (fallbackError) {
+            showToast('开始评测失败: ' + fallbackError.message, 'error');
+        }
     }
 }
 
-// 渲染心情问题
+// 渲染AI对话界面
+function renderAiDialog(sessionId, aiMessage, currentRound, totalRounds) {
+    const container = document.getElementById('mood-assessment-container');
+    const progress = (currentRound / totalRounds) * 100;
+
+    // 构建消息历史
+    if (!moodState.aiMessages) {
+        moodState.aiMessages = [];
+    }
+    if (moodState.aiMessages.length === 0) {
+        moodState.aiMessages.push({
+            role: 'ai',
+            content: '你好！我是你的AI心情助手。让我们聊聊，了解你此刻的心情状态。'
+        });
+    }
+    moodState.aiMessages.push({
+        role: 'ai',
+        content: aiMessage
+    });
+
+    const messagesHtml = moodState.aiMessages.map(msg => {
+        if (msg.role === 'ai') {
+            return `
+                <div class="mood-msg" style="display: flex; gap: 12px; margin-bottom: 16px;">
+                    <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #FF6B9D, #DDA0DD); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 3px solid white; box-shadow: 2px 2px 0px rgba(255, 107, 157, 0.3);">🤖</div>
+                    <div style="background: rgba(255, 255, 255, 0.95); padding: 12px 16px; border-radius: 16px; max-width: 75%; line-height: 1.6; color: #333; border: 2px solid rgba(255, 182, 193, 0.4); box-shadow: 2px 2px 0px rgba(255, 182, 193, 0.2);">${msg.content}</div>
+                </div>
+            `;
+        } else {
+            return `
+                <div class="mood-msg" style="display: flex; gap: 12px; margin-bottom: 16px; flex-direction: row-reverse;">
+                    <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #98FB98, #87CEEB); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 3px solid white; box-shadow: 2px 2px 0px rgba(135, 206, 235, 0.3);">👤</div>
+                    <div style="background: linear-gradient(135deg, rgba(152, 251, 152, 0.9), rgba(135, 206, 235, 0.9)); padding: 12px 16px; border-radius: 16px; max-width: 75%; line-height: 1.6; color: #333; border: 2px solid rgba(255, 255, 255, 0.5); box-shadow: 2px 2px 0px rgba(135, 206, 235, 0.3);">${msg.content}</div>
+                </div>
+            `;
+        }
+    }).join('');
+
+    container.innerHTML = `
+        <div class="mood-card" style="padding: 24px;">
+            <div style="margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; color: #666;">
+                    <span style="font-weight: 600;">对话 ${currentRound}/${totalRounds}</span>
+                    <span style="font-weight: 600; color: #FF6B9D;">${Math.round(progress)}%</span>
+                </div>
+                <div style="height: 8px; background: rgba(255, 182, 193, 0.2); border-radius: 4px; overflow: hidden; border: 1px dashed #FFB6C1;">
+                    <div style="height: 100%; width: ${progress}%; background: linear-gradient(90deg, #FF6B9D, #DDA0DD); border-radius: 4px; transition: width 0.3s;"></div>
+                </div>
+            </div>
+
+            <div id="ai-chat-messages" style="height: 300px; overflow-y: auto; margin-bottom: 16px; padding: 12px; background: rgba(255, 255, 255, 0.5); border-radius: 12px; border: 1px dashed #FFB6C1;">
+                ${messagesHtml}
+            </div>
+
+            <div style="display: flex; gap: 12px;">
+                <input type="text" id="ai-message-input" placeholder="输入你的回复..." style="flex: 1; padding: 14px 18px; border: 2px dashed #FFB6C1; border-radius: 9999px; font-size: 15px; background: rgba(255, 255, 255, 0.9); outline: none; transition: all 0.3s;" onkeypress="if(event.key==='Enter') submitAiMessage('${sessionId}')">
+                <button class="mood-btn mood-btn-primary" style="padding: 14px 28px;" onclick="submitAiMessage('${sessionId}')">
+                    发送
+                </button>
+            </div>
+        </div>
+    `;
+
+    // 滚动到底部
+    setTimeout(() => {
+        const chatMessages = document.getElementById('ai-chat-messages');
+        if (chatMessages) {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        // 聚焦输入框
+        const input = document.getElementById('ai-message-input');
+        if (input) input.focus();
+    }, 100);
+}
+
+// 提交AI对话消息
+async function submitAiMessage(sessionId) {
+    const input = document.getElementById('ai-message-input');
+    const message = input.value.trim();
+
+    if (!message) {
+        showToast('请输入你的回复', 'warning');
+        return;
+    }
+
+    // 禁用输入和按钮
+    input.disabled = true;
+    const btn = input.nextElementSibling;
+    if (btn) btn.disabled = true;
+
+    // 添加到本地消息历史
+    moodState.aiMessages.push({
+        role: 'user',
+        content: message
+    });
+
+    // 重新渲染以显示用户消息
+    const currentRound = moodState.aiMessages.filter(m => m.role === 'ai').length;
+    const totalRounds = 5;
+    const lastAiMessage = moodState.aiMessages.filter(m => m.role === 'ai').pop()?.content || '';
+    renderAiDialog(sessionId, lastAiMessage, currentRound, totalRounds);
+
+    try {
+        const data = await post('/mood/ai-assessment/dialog', {
+            sessionId: sessionId,
+            userMessage: message
+        });
+        const result = data.data;
+
+        if (result.completed) {
+            // 评测完成
+            moodState.assessmentCompleted = true;
+            moodState.currentMood = result.assessmentResult?.primaryMood;
+            moodState.aiMessages = []; // 清空消息历史
+            renderMoodResult(result.assessmentResult);
+        } else if (result.fallbackMode) {
+            // 降级到选择题模式
+            moodState.aiMessages = [];
+            if (result.fallbackMessage) {
+                showToast(result.fallbackMessage, 'info');
+            }
+            renderMoodQuestion(result.sessionId, result.question, result.currentRound, result.totalRounds);
+        } else {
+            // 继续AI对话
+            renderAiDialog(sessionId, result.aiMessage, result.currentRound, result.totalRounds);
+        }
+    } catch (error) {
+        showToast('发送消息失败: ' + error.message, 'error');
+        input.disabled = false;
+        if (btn) btn.disabled = false;
+    }
+}
+
+// 渲染心情问题（选择题降级模式）
 function renderMoodQuestion(sessionId, question, current, total) {
     const container = document.getElementById('mood-assessment-container');
 
@@ -92,7 +243,7 @@ function renderMoodQuestion(sessionId, question, current, total) {
     `;
 }
 
-// 提交心情答案
+// 提交心情答案（选择题降级模式）
 async function submitMoodAnswer(sessionId, questionNumber, selectedOption) {
     try {
         const data = await post('/mood/assessment/answer', {
@@ -112,7 +263,7 @@ async function submitMoodAnswer(sessionId, questionNumber, selectedOption) {
     }
 }
 
-// 完成心情评测
+// 完成心情评测（选择题模式）
 async function completeMoodAssessment(sessionId) {
     try {
         const data = await post('/mood/assessment/complete', { sessionId: sessionId });
