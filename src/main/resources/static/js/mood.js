@@ -58,15 +58,16 @@ async function startMoodAssessment() {
 
         if (result.assessmentType === 'CHOICE_QUESTIONS' || result.fallbackMode) {
             // AI不可用，使用原始选择题模式（重新创建session）
-            if (result.fallbackMessage) {
-                showToast(result.fallbackMessage, 'info');
-            }
+            console.log('AI模式不可用，原因:', result.fallbackMessage || '未知');
+            showToast('AI助手暂时不可用，已切换到选择题模式', 'info');
             // 调用原始选择题API
             const choiceData = await post('/mood/assessment/start', {});
             const choiceResult = choiceData.data;
             renderMoodQuestion(choiceResult.sessionId, choiceResult.question, choiceResult.currentQuestion, choiceResult.totalQuestions);
         } else {
             // AI对话模式
+            console.log('✅ AI模式可用，进入AI对话');
+            showToast('AI助手已连接！开始对话吧~', 'success');
             renderAiDialog(result.sessionId, result.aiMessage, result.currentRound, result.totalRounds);
         }
     } catch (error) {
