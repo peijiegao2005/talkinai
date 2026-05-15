@@ -6,7 +6,8 @@ let moodState = {
     messages: [],
     onlineUsers: [],
     assessmentCompleted: false,
-    currentMood: null
+    currentMood: null,
+    assessmentSessionType: null  // 'AI_DIALOG' 或 'CHOICE_QUESTIONS'
 };
 
 // 渲染心情聊天室入口页面
@@ -53,6 +54,9 @@ async function startMoodAssessment() {
         const data = await post('/mood/ai-assessment/start', {});
         const result = data.data;
 
+        // 保存会话类型
+        moodState.assessmentSessionType = result.assessmentType;
+
         if (result.assessmentType === 'CHOICE_QUESTIONS' || result.fallbackMode) {
             // AI不可用，降级到选择题模式
             if (result.fallbackMessage) {
@@ -69,6 +73,7 @@ async function startMoodAssessment() {
         try {
             const data = await post('/mood/assessment/start', {});
             const result = data.data;
+            moodState.assessmentSessionType = 'CHOICE_QUESTIONS';
             renderMoodQuestion(result.sessionId, result.question, result.currentQuestion, result.totalQuestions);
         } catch (fallbackError) {
             showToast('开始评测失败: ' + fallbackError.message, 'error');
@@ -299,17 +304,32 @@ function renderMoodQuestion(sessionId, question, current, total) {
 // 提交心情答案（选择题降级模式）
 async function submitMoodAnswer(sessionId, questionNumber, selectedOption) {
     try {
-        const data = await post('/mood/assessment/answer', {
-            sessionId: sessionId,
-            questionNumber: questionNumber,
-            selectedOption: selectedOption
-        });
+        // 根据会话类型选择正确的API
+        let data;
+        if (moodState.assessmentSessionType === 'AI_DIALOG' || moodState.aiMessages) {
+            // AI评测降级模式，使用fallback-answer接口
+            data = await post('/mood/ai-assessment/fallback-answer', {
+                sessionId: sessionId,
+                questionNumber: questionNumber,
+                selectedOption: selectedOption
+            });
+        } else {
+            // 原生选择题模式
+            data = await post('/mood/assessment/answer', {
+                sessionId: sessionId,
+                questionNumber: questionNumber,
+                selectedOption: selectedOption
+            });
+        }
         const result = data.data;
 
         if (result.completed) {
-            await completeMoodAssessment(sessionId);
+            // 评测完成，显示结果
+            moodState.assessmentCompleted = true;
+            moodState.currentMood = result.assessmentResult?.primaryMood;
+            renderMoodResult(result.assessmentResult || result);
         } else {
-            renderMoodQuestion(sessionId, result.nextQuestion, result.currentQuestion, result.totalQuestions);
+            renderMoodQuestion(sessionId, result.question, result.currentRound, result.totalRounds);
         }
     } catch (error) {
         showToast('提交答案失败: ' + error.message, 'error');
